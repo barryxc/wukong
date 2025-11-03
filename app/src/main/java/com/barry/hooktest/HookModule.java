@@ -14,6 +14,7 @@ public class HookModule implements IXposedHookLoadPackage, IXposedHookZygoteInit
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XposedBridge.log("HookModule handleLoadPackage:" + lpparam.packageName);
 
+        //todo: 填写需要hook的包名
         if (lpparam.packageName.equals("xxxxx")) {
 
             //todo: 填写hook的类名,方法名,参数类型
