@@ -8,7 +8,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
-//代码更新后，需要修改versionCode，或者卸载重装，否则不会生效
+//todo:代码更新后，需要修改versionCode，或者卸载重装，否则不会生效
 public class HookModule implements IXposedHookLoadPackage, IXposedHookZygoteInit {
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
