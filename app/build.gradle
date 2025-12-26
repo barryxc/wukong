@@ -1,27 +1,40 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
 }
 
 android {
-    namespace 'com.barry.hooktest'
+    namespace 'io.github.barryxc.wukong'
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId "com.barry.hooktest"
+        applicationId "io.github.barryxc.wukong"
         minSdk 21
         targetSdk 36
-        versionCode 4
+        versionCode 1
         versionName "1.0"
 
+
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        //Property TEST_SCOPE
+        buildConfigField "String", "TEST_SCOPE", "\"${TEST_SCOPE}\""
+
+    }
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            debuggable true
         }
     }
     compileOptions {
@@ -30,6 +43,10 @@ android {
     }
     buildFeatures {
         viewBinding true
+        aidl = true
+    }
+    kotlinOptions {
+        jvmTarget = '11'
     }
 }
 
@@ -39,10 +56,14 @@ dependencies {
     implementation libs.constraintlayout
     implementation libs.navigation.fragment
     implementation libs.navigation.ui
+    implementation libs.core.ktx
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
-
     compileOnly(libs.xposed.api)
+
+    implementation libs.okhttp
+    implementation libs.fastjson
+    implementation libs.mmkv
 
 }
