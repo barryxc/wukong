@@ -8,6 +8,8 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.Process
 import android.provider.Settings
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
 import androidx.annotation.RequiresPermission
@@ -15,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.edit
 import androidx.recyclerview.widget.LinearLayoutManager
+import io.github.barryxc.wukong.R
 import io.github.barryxc.wukong.adapter.OnItemClickListener
 import io.github.barryxc.wukong.adapter.SettingRecyclerAdapter
 import io.github.barryxc.wukong.constant.Constant
@@ -48,8 +51,8 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
                 ), 1
             )
         }
-        Logger.d("java tid:"+Thread.currentThread().id)
-        Logger.d("Process tid:"+ Process.myTid())
+        Logger.d("java tid:" + Thread.currentThread().id)
+        Logger.d("Process tid:" + Process.myTid())
     }
 
     fun checkPermission(): Boolean {
@@ -129,6 +132,22 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         requestCode: Int, permissions: Array<out String?>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        // 加载菜单布局
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true // 返回true表示显示菜单
+    }
+
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.menu_setting -> {
+                hookTest(this.window.decorView)
+            }
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     override fun onItemClick(

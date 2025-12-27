@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- 设置按钮 -->
+    <item
+        android:id="@+id/menu_setting"
+        android:orderInCategory="100"
+        android:title="test"
+        app:showAsAction="always|withText" />
+
+    <!-- 可添加其他菜单项 -->
+    <item
+        android:id="@+id/menu_about"
+        android:title="关于"
+        app:showAsAction="never" /> <!-- 仅在溢出菜单显示 -->
+</menu>
