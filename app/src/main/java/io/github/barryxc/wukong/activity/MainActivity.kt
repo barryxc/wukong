@@ -27,6 +27,7 @@ import io.github.barryxc.wukong.model.ItemData
 import io.github.barryxc.wukong.shared.DEFAULT_ANDROID_ID
 import io.github.barryxc.wukong.shared.DEFAULT_HOOK_PACKAGE_NAME
 import io.github.barryxc.wukong.shared.DEFAULT_LOCATION
+import io.github.barryxc.wukong.shared.DEFAULT_PROXY
 
 
 class MainActivity : AppCompatActivity(), OnItemClickListener {
@@ -89,6 +90,13 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
                 Constant.KEY_SAVE, mCacheData.getString(
                     Constant.Companion.KEY_MOCK_PACKAGE_NAME, DEFAULT_HOOK_PACKAGE_NAME
                 ), "package_name", SettingRecyclerAdapter.Companion.TYPE_EDITTEXT
+            )
+        )
+        mItemData.add(
+            ItemData(
+                Constant.KEY_SAVE, mCacheData.getString(
+                    Constant.Companion.KEY_MOCK_PROXY, DEFAULT_PROXY
+                ), "proxy (host:port)", SettingRecyclerAdapter.Companion.TYPE_EDITTEXT
             )
         )
     }
@@ -164,6 +172,10 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
 
             2 -> {
                 mCacheData.edit { putString(Constant.Companion.KEY_MOCK_PACKAGE_NAME, input) }
+            }
+
+            3 -> {
+                mCacheData.edit { putString(Constant.Companion.KEY_MOCK_PROXY, input?.trim()) }
             }
         }
         Toast.makeText(this, "保存成功", Toast.LENGTH_SHORT).show()

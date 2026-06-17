@@ -7,6 +7,7 @@ val registry = arrayOf(
     HookLocation,
     HookInstalledPackages,
     HookSystemPMS,
+    HookNetworkProxy,
 )
 
 const val TARGET_PACKAGE_NAME = BuildConfig.TEST_SCOPE
