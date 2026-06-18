@@ -4,10 +4,11 @@ import android.annotation.SuppressLint
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.callbacks.XC_LoadPackage
-import io.github.barryxc.wukong.hook.core.HookNetworkProxy
+import io.github.barryxc.wukong.BuildConfig
+import io.github.barryxc.wukong.hook.core.HookTarget
 import io.github.barryxc.wukong.hook.core.Starter
-import io.github.barryxc.wukong.hook.core.TEST_SCOPE
-import io.github.barryxc.wukong.hook.core.registry
+import io.github.barryxc.wukong.hook.core.applicationRegistry
+import io.github.barryxc.wukong.hook.core.earlyInstallers
 import io.github.barryxc.wukong.hook.utils.Logger
 
 // XposedModule,实例化&callback都是被执行在被hook的目标应用进程内
@@ -21,11 +22,15 @@ class HookModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
     @SuppressLint("PrivateApi")
     @Throws(Throwable::class)
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        if (TEST_SCOPE.contains(lpparam.packageName)) {
-            Logger.logHookAPP(lpparam)
-            HookNetworkProxy.install(lpparam)
-            Starter.startHook(lpparam, registry)
+        if (lpparam.packageName == BuildConfig.APPLICATION_ID) {
+            return
         }
+        HookTarget.set(lpparam.packageName)
+        Logger.logHookAPP(lpparam)
+        earlyInstallers.forEach { install ->
+            install(lpparam)
+        }
+        Starter.startHook(lpparam, applicationRegistry)
     }
 
     @Throws(Throwable::class)

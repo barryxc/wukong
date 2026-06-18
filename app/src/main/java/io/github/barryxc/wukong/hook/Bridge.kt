@@ -80,4 +80,16 @@ object Bridge {
             return moduleSharedService
         }
     }
+
+    fun moduleSourceDir(): String? {
+        return moduleContext?.applicationInfo?.sourceDir
+    }
+
+    fun moduleNativeLibraryDir(): String? {
+        return moduleContext?.applicationInfo?.nativeLibraryDir
+    }
+
+    fun targetCodeCacheDir(): String? {
+        return targetAppContext?.codeCacheDir?.absolutePath
+    }
 }

@@ -5,6 +5,7 @@ plugins {
 
 android {
     namespace 'io.github.barryxc.wukong'
+    ndkVersion "29.0.14206865"
     compileSdk {
         version = release(36)
     }
@@ -21,6 +22,12 @@ android {
 
         //Property TEST_SCOPE
         buildConfigField "String", "TEST_SCOPE", "\"${TEST_SCOPE}\""
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+            }
+        }
 
     }
     buildFeatures {
@@ -47,6 +54,16 @@ android {
     }
     kotlinOptions {
         jvmTarget = '11'
+    }
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 }
 

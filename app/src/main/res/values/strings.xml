@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">wukong</string>
+    <string name="app_name">WuKong</string>
+    <string name="settings_title">WuKong Device Spoof</string>
+    <string name="save">Save</string>
     <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">First Fragment</string>
     <string name="second_fragment_label">Second Fragment</string>

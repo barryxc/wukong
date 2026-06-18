@@ -1,25 +1,15 @@
 <resources>
-    <!-- Base application theme. -->
-    <style name="Theme.WuKong" parent="Base.Theme.WuKong">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- 不显示标题 -->
-        <item name="windowActionBarOverlay">false</item>
-        <!-- 不显示ActionBar的阴影 -->
 
-        <!-- Customize your theme here. -->
+    <style name="Theme.WuKong" parent="Base.Theme.WuKong">
+        <item name="android:navigationBarColor">@color/colorSurface</item>
+        <item name="android:statusBarColor">@color/colorPrimaryDark</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
     </style>
-    <!-- Base application theme. -->
-    <style name="Base.Theme.WuKong" parent="Theme.MaterialComponents.Light.DarkActionBar">
-        <!-- Customize your light theme here. -->
+
+    <style name="Base.Theme.WuKong" parent="Theme.MaterialComponents.Light.NoActionBar">
         <item name="colorPrimary">@color/my_light_primary</item>
+        <item name="android:fontFamily">sans</item>
     </style>
 </resources>

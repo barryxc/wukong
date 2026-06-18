@@ -38,13 +38,13 @@ object Logger {
         val simpleClassName = param.method.declaringClass.name
         val argsStr = param.args.joinToString(", ") { arg ->
             when (arg) {
-                is String -> "\"$arg\""
+                is String -> "\"<string>\""
                 is Int -> arg.toString()
                 is Long -> arg.toString()
                 is Float -> arg.toString()
                 is Double -> arg.toString()
                 is Boolean -> arg.toString()
-                is CharSequence -> "\"$arg\""
+                is CharSequence -> "\"<text>\""
                 null -> "null"
                 else -> arg::class.java.simpleName
             }
@@ -54,10 +54,14 @@ object Logger {
             TAG,
             "[Hook#Method] $simpleClassName.$methodName($argsStr) $message"
         )
-        Thread.dumpStack()
+        if (DUMP_STACK) {
+            Thread.dumpStack()
+        }
     }
 
     fun logHookAPP(loadPackageParam: XC_LoadPackage.LoadPackageParam) {
         Log.i(TAG, "[Hook#Package] ${loadPackageParam.packageName}")
     }
+
+    private const val DUMP_STACK = false
 }

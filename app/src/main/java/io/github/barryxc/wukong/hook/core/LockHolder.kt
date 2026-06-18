@@ -11,11 +11,12 @@ object LockHolder {
     }
 
     fun protect(block: () -> Unit) {
+        if (recursiveLock.get() == true) {
+            return
+        }
         try {
-            if (recursiveLock.get() == false) {
-                recursiveLock.set(true)
-                block()
-            }
+            recursiveLock.set(true)
+            block()
         } finally {
             recursiveLock.set(false)
         }

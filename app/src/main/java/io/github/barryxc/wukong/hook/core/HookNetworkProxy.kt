@@ -1,15 +1,10 @@
 package io.github.barryxc.wukong.hook.core
 
 import android.app.Application
-import android.os.Looper
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
-import io.github.barryxc.wukong.constant.Constant
-import io.github.barryxc.wukong.hook.Bridge
 import io.github.barryxc.wukong.hook.utils.Logger
-import io.github.barryxc.wukong.shared.DEFAULT_PROXY
-import io.github.barryxc.wukong.shared.ISharedService
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Proxy
@@ -27,8 +22,6 @@ import java.net.URL
  * 代理地址由 UI 配置（[Constant.KEY_MOCK_PROXY]，格式 `host:port`），为空时不生效，保持原直连行为。
  */
 object HookNetworkProxy : Hook {
-    override fun hookScope(): List<String> = TEST_SCOPE
-
     @Volatile
     private var installed = false
 
@@ -117,12 +110,12 @@ object HookNetworkProxy : Hook {
                         // 只对 http(s) 请求强制 HTTP 代理，避免影响 socket/ftp 等其它 scheme。
                         if (uri?.scheme?.startsWith("http") != true) {
                             return
-                        }
-                        val proxy = resolveProxy() ?: return
-                        param.result = listOf(proxy)
-                        Logger.i("[Proxy#select] $uri -> $proxy")
                     }
+                    val proxy = resolveProxy() ?: return
+                    param.result = listOf(proxy)
+                    Logger.i("[Proxy#select] ${safeUri(uri)} -> $proxy")
                 }
+            }
             )
             Logger.i("[Proxy#select] hooked ${proxySelectorClass.name}")
         }.onFailure {
@@ -147,11 +140,11 @@ object HookNetworkProxy : Hook {
                 }
                 val proxy = resolveProxy()
                 if (proxy == null) {
-                    Logger.i("[Proxy#openConnection] $url config empty/direct")
+                    Logger.i("[Proxy#openConnection] ${safeUrl(url)} config empty/direct")
                     return
                 }
                 param.result = url.openConnection(proxy)
-                Logger.i("[Proxy#openConnection] forced $url via $proxy")
+                Logger.i("[Proxy#openConnection] forced ${safeUrl(url)} via $proxy")
             }
         })
 
@@ -166,15 +159,15 @@ object HookNetworkProxy : Hook {
                         }
                         val proxy = resolveProxy()
                         if (proxy == null) {
-                            Logger.i("[Proxy#openConnection] $url config empty/direct")
+                            Logger.i("[Proxy#openConnection] ${safeUrl(url)} config empty/direct")
                             return
                         }
                         val originProxy = param.args.getOrNull(0) as? Proxy
                         if (originProxy != proxy) {
                             param.args[0] = proxy
-                            Logger.i("[Proxy#openConnection] explicit proxy replaced $url $originProxy -> $proxy")
+                            Logger.i("[Proxy#openConnection] explicit proxy replaced ${safeUrl(url)} $originProxy -> $proxy")
                         } else {
-                            Logger.i("[Proxy#openConnection] $url via $proxy")
+                            Logger.i("[Proxy#openConnection] ${safeUrl(url)} via $proxy")
                         }
                     }
                 }
@@ -202,7 +195,7 @@ object HookNetworkProxy : Hook {
                         // 仅日志，任何读取异常都不能影响真实连接。
                         runCatching {
                             Logger.i(
-                                "[Proxy#connect] ${conn.requestMethod} ${conn.url} usingProxy=${conn.usingProxy()}"
+                                "[Proxy#connect] ${conn.requestMethod} ${safeUrl(conn.url)} usingProxy=${conn.usingProxy()}"
                             )
                         }
                     }
@@ -215,51 +208,42 @@ object HookNetworkProxy : Hook {
     }
 
     private fun resolveProxy(): Proxy? {
-        val service = awaitSharedService()
-        val raw = service?.getString(Constant.KEY_MOCK_PROXY, DEFAULT_PROXY)
-        Logger.i("[Proxy#resolve] service=${service != null} raw='$raw'")
-        val config = raw?.trim() ?: return null
+        val config = HookConfig.proxy()
         if (config.isEmpty()) {
             return null
         }
-        val parts = config.split(":")
-        val host = parts.getOrNull(0)?.takeIf { it.isNotEmpty() } ?: return null
-        val port = parts.getOrNull(1)?.toIntOrNull() ?: return null
+        val (host, port) = parseProxyConfig(config) ?: run {
+            Logger.e("[Proxy#resolve] invalid proxy config")
+            return null
+        }
         // createUnresolved 避免在被 hook 的线程上做 DNS 解析，交由代理侧解析。
         return Proxy(Proxy.Type.HTTP, InetSocketAddress.createUnresolved(host, port))
     }
 
-    /**
-     * 解决冷启动竞态：[Bridge] 绑定 [io.github.barryxc.wukong.service.SharedService] 是异步的，
-     * 应用 onCreate 中很早发出的请求可能在服务就绪前到达，导致首条请求拿不到代理而走直连。
-     *
-     * 网络请求都在后台线程执行（主线程禁止联网），因此这里对服务做有界等待是安全的；
-     * 同时加主线程保护，避免极端情况下阻塞主线程引发 ANR。
-     */
-    private fun awaitSharedService(): ISharedService? {
-        Bridge.getSharedService()?.let { return it }
-        // 主线程不阻塞，直接返回当前状态（通常为 null，本次请求走直连）。
-        if (Looper.myLooper() == Looper.getMainLooper()) {
+    private fun parseProxyConfig(config: String): Pair<String, Int>? {
+        if (config.startsWith("[")) {
+            val end = config.indexOf(']')
+            if (end <= 1 || end + 2 > config.length || config[end + 1] != ':') {
+                return null
+            }
+            val host = config.substring(1, end)
+            val port = config.substring(end + 2).toIntOrNull() ?: return null
+            return host.takeIf { it.isNotEmpty() }?.let { it to port }?.takeIf { port in 1..65535 }
+        }
+        val splitIndex = config.lastIndexOf(':')
+        if (splitIndex <= 0 || splitIndex == config.lastIndex) {
             return null
         }
-        var waited = 0L
-        while (waited < SERVICE_WAIT_TIMEOUT_MS) {
-            try {
-                Thread.sleep(SERVICE_WAIT_INTERVAL_MS)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                return Bridge.getSharedService()
-            }
-            waited += SERVICE_WAIT_INTERVAL_MS
-            Bridge.getSharedService()?.let {
-                Logger.i("[Proxy] SharedService ready after ${waited}ms")
-                return it
-            }
-        }
-        Logger.e("[Proxy] SharedService not ready after ${SERVICE_WAIT_TIMEOUT_MS}ms, fallback DIRECT")
-        return null
+        val host = config.substring(0, splitIndex)
+        val port = config.substring(splitIndex + 1).toIntOrNull() ?: return null
+        return host.takeIf { it.isNotEmpty() }?.let { it to port }?.takeIf { port in 1..65535 }
     }
 
-    private const val SERVICE_WAIT_TIMEOUT_MS = 3000L
-    private const val SERVICE_WAIT_INTERVAL_MS = 50L
+    private fun safeUrl(url: URL): String {
+        return "${url.protocol}://${url.host}"
+    }
+
+    private fun safeUri(uri: URI): String {
+        return "${uri.scheme}://${uri.host}"
+    }
 }

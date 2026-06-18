@@ -1,14 +1,24 @@
 package io.github.barryxc.wukong.adapter
 
 import android.text.TextUtils
+import android.text.InputType
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.CompoundButton
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatButton
+import androidx.appcompat.widget.AppCompatImageButton
+import androidx.appcompat.widget.AppCompatSpinner
 import androidx.appcompat.widget.SwitchCompat
 import io.github.barryxc.wukong.R
 import io.github.barryxc.wukong.model.ItemData
+import io.github.barryxc.wukong.shared.DEFAULT_BRAND
+import io.github.barryxc.wukong.shared.DEFAULT_MODEL
+import io.github.barryxc.wukong.shared.DeviceProfiles
 
 class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
     companion object {
@@ -20,6 +30,32 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
 
         @JvmField
         val TYPE_EDITTEXT = 2
+
+        @JvmField
+        val TYPE_SELECT = 3
+
+        const val ANDROID_ID_TITLE = "Android ID"
+        const val LOCATION_TITLE = "Location (lat,lng,alt,accuracy)"
+        const val BRAND_TITLE = "Brand"
+        const val MODEL_TITLE = "Model"
+        const val PACKAGE_NAME_TITLE = "Mock package name"
+        const val PROXY_TITLE = "HTTP proxy (host:port)"
+
+        fun defaultModelForBrand(brand: String?): String {
+            return DeviceProfiles.defaultModelForBrand(brand)
+        }
+
+        fun isModelForBrand(brand: String?, model: String?): Boolean {
+            return DeviceProfiles.isModelForBrand(brand, model)
+        }
+
+        private fun modelOptionsForBrand(brand: String?): List<SelectOption> {
+            if (brand.isNullOrBlank()) {
+                return listOf(SelectOption("不修改 / 原值", ""))
+            }
+            return DeviceProfiles.devicesForBrand(brand)
+                .map { SelectOption(it.label, it.model) }
+        }
     }
 
     private var mOnItemClickListener: OnItemClickListener? = null
@@ -31,6 +67,8 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
             R.layout.item_setting_button
         } else if (viewType == TYPE_EDITTEXT) {
             R.layout.item_setting_editext
+        } else if (viewType == TYPE_SELECT) {
+            R.layout.item_setting_select
         } else {
             R.layout.item_setting_switch
         }
@@ -46,6 +84,7 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
             TYPE_SWITCH -> holder?.let { setTypeSwitchView(it, data, position) }
             TYPE_BUTTON -> holder?.let { setTypeButtonView(it, data, position) }
             TYPE_EDITTEXT -> holder?.let { setTypeEdittextView(it, data, position) }
+            TYPE_SELECT -> holder?.let { setTypeSelectView(it, data, position) }
         }
     }
 
@@ -85,21 +124,139 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
 
     private fun setTypeEdittextView(holder: BaseViewHolder, data: ItemData, position: Int) {
         val editText = holder.getView<EditText>(R.id.tv_key)
-        editText!!.hint = "请输入"
-        if (!(TextUtils.isEmpty(data.value as? String))) {
-            editText.setText(data.value as? String)
+        val title = data.describe.orEmpty()
+        editText!!.hint = buildHint(title)
+        (editText.tag as? TextWatcher)?.let {
+            editText.removeTextChangedListener(it)
+        }
+        editText.setText(data.value as? String ?: "")
+        editText.setSelection(editText.text?.length ?: 0)
+        if (title.contains("Target", ignoreCase = true)) {
+            editText.minLines = 2
+            editText.maxLines = 4
+            editText.inputType =
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        } else {
+            editText.minLines = 1
+            editText.maxLines = 1
+            editText.inputType = InputType.TYPE_CLASS_TEXT
         }
         val tvDescribe = holder.getView<TextView>(R.id.tv_describe)
         if (!TextUtils.isEmpty(data.describe)) {
             tvDescribe?.text = data.describe
         }
         val button = holder.getView<AppCompatButton>(R.id.setting_button)
-        button!!.text = data.key
-        button.setOnClickListener {
-            if (mOnItemClickListener != null) {
-                val partnerCode = editText.text.toString()
-                mOnItemClickListener!!.onItemClick(position, false, partnerCode)
+        if (
+            title == ANDROID_ID_TITLE ||
+            title == LOCATION_TITLE ||
+            title == PACKAGE_NAME_TITLE ||
+            title == PROXY_TITLE
+        ) {
+            button?.visibility = View.VISIBLE
+            button?.text = when (title) {
+                LOCATION_TITLE -> "定位"
+                PROXY_TITLE -> "本机IP"
+                else -> "随机"
             }
+            button?.setOnClickListener {
+                mOnItemClickListener?.onItemClick(position, false, editText.text.toString())
+            }
+        } else {
+            button?.visibility = View.GONE
+            button?.setOnClickListener(null)
+        }
+        val clearButton = holder.getView<AppCompatImageButton>(R.id.clear_button)
+        clearButton?.visibility =
+            if (editText.text.isNullOrEmpty()) View.GONE else View.VISIBLE
+        clearButton?.setOnClickListener {
+            editText.text?.clear()
+            editText.requestFocus()
+        }
+        val watcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                data.value = s?.toString().orEmpty()
+                clearButton?.visibility =
+                    if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
+            }
+
+            override fun afterTextChanged(s: Editable?) = Unit
+        }
+        editText.addTextChangedListener(watcher)
+        editText.tag = watcher
+    }
+
+    private fun setTypeSelectView(holder: BaseViewHolder, data: ItemData, adapterPosition: Int) {
+        val title = data.describe.orEmpty()
+        val tvDescribe = holder.getView<TextView>(R.id.tv_describe)
+        tvDescribe?.text = title
+
+        val spinner = holder.getView<AppCompatSpinner>(R.id.setting_spinner) ?: return
+        val options = selectOptions(title)
+        if (options.isEmpty()) {
+            return
+        }
+        val adapter = ArrayAdapter(
+            spinner.context,
+            android.R.layout.simple_spinner_item,
+            options.map { it.label }
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        spinner.onItemSelectedListener = null
+        spinner.adapter = adapter
+        val currentValue = data.value as? String
+        val selectedIndex = options.indexOfFirst {
+            it.value == currentValue || it.value.equals(currentValue, ignoreCase = true)
+        }.takeIf { it >= 0 } ?: 0
+        data.value = options[selectedIndex].value
+        spinner.setSelection(selectedIndex, false)
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                val selectedValue = options.getOrNull(position)?.value.orEmpty()
+                val previousValue = data.value as? String
+                data.value = selectedValue
+                if (selectedValue != previousValue) {
+                    mOnItemClickListener?.onItemClick(adapterPosition, false, selectedValue)
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+
+    private fun selectOptions(title: String): List<SelectOption> {
+        return when (title) {
+            BRAND_TITLE -> listOf(SelectOption("不修改 / 原值", "")) +
+                DeviceProfiles.brands.map { SelectOption(it.label, it.brand) }
+            MODEL_TITLE -> modelOptionsForBrand(currentBrand())
+            else -> emptyList()
+        }
+    }
+
+    private fun currentBrand(): String? {
+        return mData
+            ?.firstOrNull { it.describe == BRAND_TITLE }
+            ?.value as? String
+    }
+
+    private fun buildHint(title: String): String {
+        return when {
+            title.contains("Location", ignoreCase = true) -> "30,120,0,0.5"
+            title.contains("Android", ignoreCase = true) -> "1234567890abcdef"
+            title.contains("Target", ignoreCase = true) ->
+                "com.example.app, com.example.demo"
+            title == PACKAGE_NAME_TITLE -> "com.example.mock"
+            title == BRAND_TITLE -> DEFAULT_BRAND
+            title == MODEL_TITLE -> DEFAULT_MODEL
+            title.contains("Proxy", ignoreCase = true) -> "127.0.0.1:8888"
+            else -> "请输入"
         }
     }
 
@@ -111,4 +268,9 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
     fun setOnItemClickListener(listener: OnItemClickListener?) {
         mOnItemClickListener = listener
     }
+
+    private data class SelectOption(
+        val label: String,
+        val value: String
+    )
 }

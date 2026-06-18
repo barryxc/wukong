@@ -2,7 +2,7 @@ package io.github.barryxc.wukong.hook.core
 
 import android.app.Application
 import android.content.ContentResolver
-import android.database.Cursor
+import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -11,21 +11,35 @@ import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
-import io.github.barryxc.wukong.constant.Constant
-import io.github.barryxc.wukong.hook.Bridge
 import io.github.barryxc.wukong.hook.utils.Logger
-import io.github.barryxc.wukong.shared.DEFAULT_ANDROID_ID
 
 object HookAndroidId : Hook {
-    override fun hookScope(): List<String>? {
-        return TEST_SCOPE
-    }
+    @Volatile
+    private var installed = false
 
     override fun doHook(
         application: Application,
         loadPackageParam: XC_LoadPackage.LoadPackageParam
     ) {
+        install()
+    }
+
+    fun install() {
+        if (installed) {
+            return
+        }
+        synchronized(this) {
+            if (installed) {
+                return
+            }
+            doInstall()
+            installed = true
+        }
+    }
+
+    private fun doInstall() {
         hookSettingsSecureGetString()
+        hookSettingsNameValueCache()
         hookContentResolverQuery()
         hookContentResolverCall()
     }
@@ -43,29 +57,19 @@ object HookAndroidId : Hook {
 
                     @Throws(Throwable::class)
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        val uri = param.args.getOrNull(0) as? Uri
+                        val target = param.args.getOrNull(0)
                         val callMethod = param.args.getOrNull(1) as? String
                         val callMethodArg = param.args.getOrNull(2) as? String
-                        if (uri != null && callMethod.equals("GET_secure") && callMethodArg?.contains(
-                                "android_id", true
-                            ) == true
+                        if (isSecureSettingsCallTarget(target)
+                            && callMethod == "GET_secure"
+                            && callMethodArg == Settings.Secure.ANDROID_ID
                         ) {
-                            Bridge.getSharedService()?.let { service ->
-                                service.getString(Constant.KEY_MOCK_ANDROID_ID, DEFAULT_ANDROID_ID)
-                                    .takeIf { it.isNotEmpty() }
-                                    ?.let { mockAndroidId ->
-                                        val originResult = param.result as? Bundle;
-                                        Logger.logHookMethod(
-                                            param,
-                                            "set result $mockAndroidId,original result is ${
-                                                originResult?.getString(
-                                                    "value"
-                                                )
-                                            }"
-                                        )
-                                        param.result = bundleOf("value" to mockAndroidId)
-                                    }
+                            val mockAndroidId = HookConfig.androidId()
+                            if (mockAndroidId.isBlank()) {
+                                return
                             }
+                            Logger.logHookMethod(param, "set android_id result")
+                            param.result = bundleOf("value" to mockAndroidId)
                         }
                     }
                 })
@@ -74,9 +78,9 @@ object HookAndroidId : Hook {
 
     private fun hookSettingsSecureGetString() {
 
-        // Hook多个重载的query方法
+        // Hook getString 与部分系统版本可反射访问到的 getStringForUser。
         val queryMethods = Settings.Secure::class.java.declaredMethods.filter {
-            it.name == "getString" && it.parameterTypes.size >= 2
+            (it.name == "getString" || it.name == "getStringForUser") && it.parameterTypes.size >= 2
         }
         queryMethods.forEach { method ->
             XposedHelpers.findAndHookMethod(
@@ -89,27 +93,55 @@ object HookAndroidId : Hook {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val contentResolver = param.args.getOrNull(0) as? ContentResolver
                         val key = param.args.getOrNull(1) as? String
-                        if (contentResolver != null && key?.contains(
-                                Settings.Secure.ANDROID_ID, true
-                            ) == true
+                        if (contentResolver != null && key == Settings.Secure.ANDROID_ID
                         ) {
-                            Bridge.getSharedService()?.let { service ->
-                                service.getString(Constant.KEY_MOCK_ANDROID_ID, DEFAULT_ANDROID_ID)
-                                    .takeIf { it.isNotEmpty() }
-                                    ?.let { mockAndroidId ->
-                                        Logger.logHookMethod(
-                                            param,
-                                            "set result $mockAndroidId,original result is ${param.result}"
-                                        )
-                                        param.result = mockAndroidId
-                                    }
+                            val mockAndroidId = HookConfig.androidId()
+                            if (mockAndroidId.isBlank()) {
+                                return
                             }
+                            Logger.logHookMethod(param, "set android_id result")
+                            param.result = mockAndroidId
                         }
                     }
                 })
         }
 
 
+    }
+
+    private fun hookSettingsNameValueCache() {
+        runCatching {
+            Class.forName("android.provider.Settings\$NameValueCache")
+        }.onSuccess { cacheClass ->
+            cacheClass.declaredMethods
+                .filter { it.name == "getString" || it.name == "getStringForUser" }
+                .forEach { method ->
+                    runCatching {
+                        XposedHelpers.findAndHookMethod(
+                            cacheClass,
+                            method.name,
+                            *method.parameterTypes,
+                            object : XC_MethodHook() {
+                                @Throws(Throwable::class)
+                                override fun afterHookedMethod(param: MethodHookParam) {
+                                    if (param.args.any { it == Settings.Secure.ANDROID_ID }) {
+                                        val mockAndroidId = HookConfig.androidId()
+                                        if (mockAndroidId.isBlank()) {
+                                            return
+                                        }
+                                        Logger.logHookMethod(param, "set android_id cache result")
+                                        param.result = mockAndroidId
+                                    }
+                                }
+                            }
+                        )
+                    }.onFailure {
+                        Logger.e("[AndroidId] hook NameValueCache.${method.name} failed: ${it.message}")
+                    }
+                }
+        }.onFailure {
+            Logger.e("[AndroidId] NameValueCache not found: ${it.message}")
+        }
     }
 
     private fun hookContentResolverQuery() {
@@ -127,24 +159,18 @@ object HookAndroidId : Hook {
                     object : XC_MethodHook() {
                         override fun beforeHookedMethod(param: MethodHookParam) {
                             try {
-                                val uri = param.args.getOrNull(0) as? android.net.Uri
+                                val uri = param.args.getOrNull(0) as? Uri
+                                val projection = param.args.getStringArrayOrNull(1)
                                 val selection = param.args.getOrNull(2) as? String
-                                val args = param.args.getOrNull(3) as? Array<String>?
-                                if (uri != null && isAndroidIdQuery(uri, selection, args)) {
-                                    Bridge.getSharedService()?.let { service ->
-                                        service.getString(
-                                            Constant.KEY_MOCK_ANDROID_ID,
-                                            DEFAULT_ANDROID_ID
-                                        )
-                                            .takeIf { it.isNotEmpty() }
-                                            ?.let { mockAndroidId ->
-                                                Logger.logHookMethod(
-                                                    param, "set result $mockAndroidId"
-                                                )
-                                                // 在这里可以替换返回的Cursor对象
-                                                param.result = MockAndroidIdCursor(mockAndroidId)
-                                            }
+                                val queryBundle = param.args.getOrNull(2) as? Bundle
+                                val selectionArgs = param.args.getStringArrayOrNull(3)
+                                if (uri != null && isAndroidIdQuery(uri, selection, selectionArgs, queryBundle)) {
+                                    val mockAndroidId = HookConfig.androidId()
+                                    if (mockAndroidId.isBlank()) {
+                                        return
                                     }
+                                    Logger.logHookMethod(param, "set android_id cursor")
+                                    param.result = buildAndroidIdCursor(projection, mockAndroidId)
                                 }
                             } catch (e: Exception) {
                                 XposedBridge.log("Error in query hook: ${e.message}")
@@ -158,58 +184,80 @@ object HookAndroidId : Hook {
     }
 
     private fun isAndroidIdQuery(
-        uri: android.net.Uri?, selection: String?, args: Array<String>?
+        uri: Uri?, selection: String?, args: Array<String>?, queryBundle: Bundle?
     ): Boolean {
-        return (uri == Settings.Secure.CONTENT_URI || uri == Settings.System.CONTENT_URI) && (selection?.contains(
-            "android_id"
-        ) == true || args?.contains("android_id") == true)
+        if (!isSettingsUri(uri)) {
+            return false
+        }
+        if (uri?.lastPathSegment == Settings.Secure.ANDROID_ID) {
+            return true
+        }
+        return selection == Settings.Secure.ANDROID_ID
+            || args?.any { it == Settings.Secure.ANDROID_ID } == true
+            || queryBundle?.containsSettingName(Settings.Secure.ANDROID_ID) == true
     }
 
-}
-
-
-class MockAndroidIdCursor(private val mockAndroidId: String) : android.database.AbstractCursor() {
-    private val columnNames = arrayOf("_id", "name", "value")
-    private var isAfterLast = false
-
-    override fun getColumnNames(): Array<String> = columnNames
-
-    override fun getCount(): Int = 1
-    override fun getDouble(column: Int): Double {
-        return 0.0
-    }
-
-    override fun getFloat(column: Int): Float {
-        return 0.0f
-    }
-
-    override fun getString(columnIndex: Int): String? {
-        return when (columnIndex) {
-            1 -> "android_id" // name column
-            2 -> mockAndroidId // value column
-            else -> null
+    private fun isSecureSettingsCallTarget(target: Any?): Boolean {
+        return when (target) {
+            is Uri -> isSettingsUri(target)
+            is String -> target == "settings"
+            else -> false
         }
     }
 
-    override fun getInt(columnIndex: Int): Int = if (columnIndex == 0) 1 else 0 // _id column
-
-    override fun getLong(columnIndex: Int): Long = getInt(columnIndex).toLong()
-    override fun getShort(column: Int): Short {
-        return 0
+    private fun isSettingsUri(uri: Uri?): Boolean {
+        if (uri == null || uri.authority != "settings") {
+            return false
+        }
+        val segments = uri.pathSegments
+        return segments.firstOrNull() == "secure" || segments.firstOrNull() == "system"
     }
 
-    override fun getType(columnIndex: Int): Int = when (columnIndex) {
-        0 -> Cursor.FIELD_TYPE_INTEGER
-        1, 2 -> Cursor.FIELD_TYPE_STRING
-        else -> Cursor.FIELD_TYPE_NULL
+    @Suppress("DEPRECATION")
+    private fun Bundle.containsSettingName(name: String): Boolean {
+        for (key in keySet()) {
+            val value = get(key)
+            if (value == name) {
+                return true
+            }
+            if (value is Array<*> && value.any { it == name }) {
+                return true
+            }
+            if (value is Iterable<*> && value.any { it == name }) {
+                return true
+            }
+        }
+        return false
     }
 
-    override fun isNull(columnIndex: Int): Boolean = moveToCurrentRow().not()
-
-    override fun onMove(oldPosition: Int, newPosition: Int): Boolean {
-        isAfterLast = newPosition >= count
-        return !isAfterLast
+    private fun Array<Any?>.getStringArrayOrNull(index: Int): Array<String>? {
+        val value = getOrNull(index) ?: return null
+        if (value !is Array<*>) {
+            return null
+        }
+        if (value.any { it != null && it !is String }) {
+            return null
+        }
+        @Suppress("UNCHECKED_CAST")
+        return value as Array<String>
     }
 
-    private fun moveToCurrentRow(): Boolean = position >= 0 && position < count && !isAfterLast
+    private fun buildAndroidIdCursor(projection: Array<String>?, mockAndroidId: String): MatrixCursor {
+        val columns = projection
+            ?.takeIf { it.isNotEmpty() }
+            ?: arrayOf("_id", "name", "value")
+        val row = arrayOfNulls<Any>(columns.size)
+        columns.forEachIndexed { index, column ->
+            row[index] = when (column) {
+                "_id" -> 1
+                "name" -> Settings.Secure.ANDROID_ID
+                "value" -> mockAndroidId
+                else -> null
+            }
+        }
+        return MatrixCursor(columns).apply {
+            addRow(row)
+        }
+    }
+
 }
