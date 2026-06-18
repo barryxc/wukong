@@ -5,7 +5,6 @@ import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.BuildConfig
-import io.github.barryxc.wukong.hook.core.HookTarget
 import io.github.barryxc.wukong.hook.core.Starter
 import io.github.barryxc.wukong.hook.core.applicationRegistry
 import io.github.barryxc.wukong.hook.core.earlyInstallers
@@ -25,7 +24,6 @@ class HookModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
         if (lpparam.packageName == BuildConfig.APPLICATION_ID) {
             return
         }
-        HookTarget.set(lpparam.packageName)
         Logger.logHookAPP(lpparam)
         earlyInstallers.forEach { install ->
             install(lpparam)

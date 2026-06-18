@@ -19,6 +19,7 @@ object HookSystemPMS : Hook {
         if (!installed.compareAndSet(false, true)) {
             return
         }
+
         val activityThread = loadPackageParam.classLoader
             .loadClass("android.app.ActivityThread")
             .getMethod("currentActivityThread")
@@ -26,9 +27,10 @@ object HookSystemPMS : Hook {
         val packageManager = activityThread.javaClass
             .getMethod("getPackageManager")
             .invoke(activityThread) ?: return
+        val realPackageName = loadPackageParam.packageName
 
         listOf("getInstalledPackages", "getInstalledApplications").forEach { methodName ->
-            XposedBridge.hookAllMethods(
+            val hookedMethods = XposedBridge.hookAllMethods(
                 packageManager.javaClass,
                 methodName,
                 object : XC_MethodHook() {
@@ -38,42 +40,84 @@ object HookSystemPMS : Hook {
                             if (mockPackageName.isBlank()) {
                                 return@protect
                             }
-                            replaceResult(param.result, mockPackageName)
-                            Logger.logHookMethod(param, "updated package manager result")
+                            replaceResult(
+                                result = param.result,
+                                realPackageName = realPackageName,
+                                mockPackageName = mockPackageName
+                            )
+                            Logger.logHookMethod(
+                                param,
+                                "replace PMS package $realPackageName with $mockPackageName"
+                            )
                         }
                     }
                 }
             )
+            if (hookedMethods.isNotEmpty()) {
+                Logger.i(
+                    "[Hook#SystemPMS] installed ${packageManager.javaClass.name}.$methodName"
+                )
+            }
         }
     }
 
-    private fun replaceResult(result: Any?, mockPackageName: String) {
-        val packages = when (result) {
+    private fun replaceResult(
+        result: Any?,
+        realPackageName: String,
+        mockPackageName: String
+    ) {
+        val packages = extractPackages(result) ?: return
+        packages.forEach { packageEntry ->
+            when (packageEntry) {
+                is PackageInfo -> replacePackageInfo(
+                    info = packageEntry,
+                    realPackageName = realPackageName,
+                    mockPackageName = mockPackageName
+                )
+
+                is ApplicationInfo -> replaceApplicationInfo(
+                    info = packageEntry,
+                    realPackageName = realPackageName,
+                    mockPackageName = mockPackageName
+                )
+            }
+        }
+    }
+
+    private fun extractPackages(result: Any?): List<*>? {
+        return when (result) {
             is List<*> -> result
-            null -> return
+            null -> null
             else -> runCatching {
                 val getList = result.javaClass.methods.firstOrNull {
                     it.name == "getList" && it.parameterTypes.isEmpty()
-                } ?: return
+                } ?: return null
                 getList.invoke(result) as? List<*>
             }.getOrNull()
-        } ?: return
+        }
+    }
 
-        packages.forEach { packageEntry ->
-            when (packageEntry) {
-                is PackageInfo -> {
-                    if (isTargetPackage(packageEntry.packageName)) {
-                        packageEntry.packageName = mockPackageName
-                        packageEntry.applicationInfo?.packageName = mockPackageName
-                    }
-                }
+    private fun replacePackageInfo(
+        info: PackageInfo,
+        realPackageName: String,
+        mockPackageName: String
+    ) {
+        if (info.packageName != realPackageName) {
+            return
+        }
+        info.packageName = mockPackageName
+        info.applicationInfo?.let {
+            replaceApplicationInfo(it, realPackageName, mockPackageName)
+        }
+    }
 
-                is ApplicationInfo -> {
-                    if (isTargetPackage(packageEntry.packageName)) {
-                        packageEntry.packageName = mockPackageName
-                    }
-                }
-            }
+    private fun replaceApplicationInfo(
+        info: ApplicationInfo,
+        realPackageName: String,
+        mockPackageName: String
+    ) {
+        if (info.packageName == realPackageName) {
+            info.packageName = mockPackageName
         }
     }
 }
