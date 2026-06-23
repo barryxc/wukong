@@ -1,6 +1,7 @@
 package io.github.barryxc.wukong.hook.core
 
 import android.app.Application
+import android.net.Network
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
@@ -44,6 +45,7 @@ object HookNetworkProxy : Hook {
             hookProxySelector(loadPackageParam)
             hookProxySelectorSetDefault()
             hookOpenConnection()
+            hookNetworkOpenConnection()
             hookHttpConnect(loadPackageParam)
             installed = true
         }
@@ -171,6 +173,75 @@ object HookNetworkProxy : Hook {
                         }
                     }
                 }
+            )
+        }
+    }
+
+    /**
+     * [Network.openConnection] 会使用指定 Network 的 SocketFactory 直接创建连接，
+     * 不保证经过 [URL.openConnection] 的公共入口，因此需要单独 hook。
+     *
+     * 转调带 [Proxy] 的重载可以同时保留 Network 绑定和强制代理语义。
+     */
+    private fun hookNetworkOpenConnection() {
+        runCatching {
+            XposedHelpers.findAndHookMethod(
+                Network::class.java, "openConnection", URL::class.java, object : XC_MethodHook() {
+                    @Throws(Throwable::class)
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val network = param.thisObject as? Network ?: return
+                        val url = param.args.getOrNull(0) as? URL ?: return
+                        if (url.protocol?.startsWith("http") != true) {
+                            return
+                        }
+                        val proxy = resolveProxy()
+                        if (proxy == null) {
+                            Logger.i("[Proxy#networkOpenConnection] ${safeUrl(url)} config empty/direct")
+                            return
+                        }
+                        param.result = network.openConnection(url, proxy)
+                        Logger.i("[Proxy#networkOpenConnection] forced ${safeUrl(url)} via $proxy")
+                    }
+                }
+            )
+        }.onFailure {
+            Logger.e("[Proxy#networkOpenConnection] hook Network.openConnection(URL) failed: ${it.message}")
+        }
+
+        runCatching {
+            XposedHelpers.findAndHookMethod(
+                Network::class.java,
+                "openConnection",
+                URL::class.java,
+                Proxy::class.java,
+                object : XC_MethodHook() {
+                    @Throws(Throwable::class)
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val url = param.args.getOrNull(0) as? URL ?: return
+                        if (url.protocol?.startsWith("http") != true) {
+                            return
+                        }
+                        val proxy = resolveProxy()
+                        if (proxy == null) {
+                            Logger.i("[Proxy#networkOpenConnection] ${safeUrl(url)} config empty/direct")
+                            return
+                        }
+                        val originProxy = param.args.getOrNull(1) as? Proxy
+                        if (originProxy != proxy) {
+                            param.args[1] = proxy
+                            Logger.i(
+                                "[Proxy#networkOpenConnection] explicit proxy replaced " +
+                                    "${safeUrl(url)} $originProxy -> $proxy"
+                            )
+                        } else {
+                            Logger.i("[Proxy#networkOpenConnection] ${safeUrl(url)} via $proxy")
+                        }
+                    }
+                }
+            )
+        }.onFailure {
+            Logger.e(
+                "[Proxy#networkOpenConnection] hook Network.openConnection(URL, Proxy) failed: ${it.message}"
             )
         }
     }
