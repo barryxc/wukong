@@ -27,6 +27,8 @@ import io.github.barryxc.wukong.shared.DEFAULT_BRAND
 import io.github.barryxc.wukong.shared.DEFAULT_HOOK_PACKAGE_NAME
 import io.github.barryxc.wukong.shared.DEFAULT_LOCATION
 import io.github.barryxc.wukong.shared.DEFAULT_PROXY
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.security.SecureRandom
 
 
@@ -54,14 +56,13 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
     }
 
     fun initData() {
-        val savedBrand = mCacheData.getString(Constant.Companion.KEY_MOCK_BRAND, DEFAULT_BRAND)
-            ?: DEFAULT_BRAND
+        val savedBrand =
+            mCacheData.getString(Constant.Companion.KEY_MOCK_BRAND, DEFAULT_BRAND) ?: DEFAULT_BRAND
         val savedModel = mCacheData.getString(
             Constant.Companion.KEY_MOCK_MODEL,
             SettingRecyclerAdapter.defaultModelForBrand(savedBrand)
         )
-        val model = savedModel
-            ?.takeIf { SettingRecyclerAdapter.isModelForBrand(savedBrand, it) }
+        val model = savedModel?.takeIf { SettingRecyclerAdapter.isModelForBrand(savedBrand, it) }
             ?: SettingRecyclerAdapter.defaultModelForBrand(savedBrand)
         mItemData.add(
             ItemData(
@@ -81,29 +82,19 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         )
         mItemData.add(
             ItemData(
-                Constant.KEY_SAVE,
-                savedBrand,
-                "Brand",
-                SettingRecyclerAdapter.Companion.TYPE_SELECT
+                Constant.KEY_SAVE, savedBrand, "Brand", SettingRecyclerAdapter.Companion.TYPE_SELECT
             )
         )
         mItemData.add(
             ItemData(
-                Constant.KEY_SAVE,
-                model,
-                "Model",
-                SettingRecyclerAdapter.Companion.TYPE_SELECT
+                Constant.KEY_SAVE, model, "Model", SettingRecyclerAdapter.Companion.TYPE_SELECT
             )
         )
         mItemData.add(
             ItemData(
-                Constant.KEY_SAVE,
-                mCacheData.getString(
-                    Constant.Companion.KEY_MOCK_PACKAGE_NAME,
-                    DEFAULT_HOOK_PACKAGE_NAME
-                ),
-                "Mock package name",
-                SettingRecyclerAdapter.Companion.TYPE_EDITTEXT
+                Constant.KEY_SAVE, mCacheData.getString(
+                    Constant.Companion.KEY_MOCK_PACKAGE_NAME, DEFAULT_HOOK_PACKAGE_NAME
+                ), "Mock package name", SettingRecyclerAdapter.Companion.TYPE_EDITTEXT
             )
         )
         mItemData.add(
@@ -129,7 +120,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String?>, grantResults: IntArray
+        requestCode: Int, permissions: Array<out String?>, grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
@@ -167,7 +158,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
     }
 
     override fun onItemClick(
-        position: Int, isChecked: Boolean, input: String?
+        position: Int, isChecked: Boolean, input: String?,
     ) {
         when (position) {
             LOCATION_POSITION -> {
@@ -196,14 +187,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
             }
 
             PROXY_POSITION -> {
-                val deviceIp = currentWifiDeviceIp()
-                if (deviceIp == null) {
-                    Toast.makeText(this, "未获取到当前设备 IP", Toast.LENGTH_SHORT).show()
-                    return
-                }
-                mItemData[PROXY_POSITION].value = "$deviceIp:$DEFAULT_PROXY_PORT"
-                settingAdapter.notifyItemChanged(PROXY_POSITION)
-                Toast.makeText(this, "已填入当前设备 IP，点击右上角保存", Toast.LENGTH_SHORT).show()
+                fillMacProxyIp()
             }
         }
     }
@@ -215,8 +199,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
             putString(Constant.Companion.KEY_MOCK_BRAND, valueAt(BRAND_POSITION))
             putString(Constant.Companion.KEY_MOCK_MODEL, valueAt(MODEL_POSITION))
             putString(
-                Constant.Companion.KEY_MOCK_PACKAGE_NAME,
-                valueAt(PACKAGE_NAME_POSITION)
+                Constant.Companion.KEY_MOCK_PACKAGE_NAME, valueAt(PACKAGE_NAME_POSITION)
             )
             putString(Constant.Companion.KEY_MOCK_PROXY, valueAt(PROXY_POSITION).trim())
         }
@@ -272,8 +255,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
 
     private fun requestLocationPermission() {
         if (!ActivityCompat.shouldShowRequestPermissionRationale(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                this, Manifest.permission.ACCESS_FINE_LOCATION
             ) && hasRequestedLocationPermission()
         ) {
             Toast.makeText(this, "定位权限已被拒绝，请到系统设置中开启", Toast.LENGTH_SHORT).show()
@@ -281,26 +263,21 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         }
         markLocationPermissionRequested()
         ActivityCompat.requestPermissions(
-            this,
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ),
-            LOCATION_PERMISSION_REQUEST_CODE
+            this, arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION
+            ), LOCATION_PERMISSION_REQUEST_CODE
         )
     }
 
     private fun hasFineLocationPermission(): Boolean {
         return ActivityCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
+            this, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun hasCoarseLocationPermission(): Boolean {
         return ActivityCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+            this, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
     }
 
@@ -315,8 +292,8 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
     }
 
     private fun currentLocation(): Location? {
-        val locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-            ?: return null
+        val locationManager =
+            getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
         val providers = listOf(
             LocationManager.GPS_PROVIDER,
             LocationManager.NETWORK_PROVIDER,
@@ -351,8 +328,8 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
 
     @Suppress("DEPRECATION")
     private fun currentWifiGatewayIp(): String? {
-        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            ?: return null
+        val wifiManager =
+            applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return null
         val gateway = wifiManager.dhcpInfo?.gateway ?: return null
         if (gateway == 0) {
             return null
@@ -362,8 +339,8 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
 
     @Suppress("DEPRECATION")
     private fun currentWifiDeviceIp(): String? {
-        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            ?: return null
+        val wifiManager =
+            applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return null
         val ipAddress = wifiManager.connectionInfo?.ipAddress ?: return null
         if (ipAddress == 0) {
             return null
@@ -380,8 +357,44 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         ).joinToString(".")
     }
 
+    private fun fillMacProxyIp() {
+        Toast.makeText(this, "正在解析 $MAC_LOCAL_HOST", Toast.LENGTH_SHORT).show()
+        Thread {
+            var ip = resolveMacLocalIp()
+            runOnUiThread {
+                if (ip == null) {
+                    Toast.makeText(
+                        this,
+                        "未解析到 $MAC_LOCAL_HOST，请确认手机和 Mac 在同一局域网",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    ip = currentWifiGatewayIp()
+                }
+                if (ip == null) {
+                    return@runOnUiThread
+                }
+                mItemData[PROXY_POSITION].value = "$ip:$DEFAULT_PROXY_PORT"
+                settingAdapter.notifyItemChanged(PROXY_POSITION)
+                Toast.makeText(this, "已填入ip地址，点击右上角保存", Toast.LENGTH_SHORT).show()
+            }
+        }.start()
+    }
+
+    private fun resolveMacLocalIp(): String? {
+        return MAC_LOCAL_HOST_CANDIDATES.asSequence().mapNotNull { host ->
+            runCatching {
+                InetAddress.getAllByName(host)
+                    .firstOrNull { it is Inet4Address && !it.isLoopbackAddress }?.hostAddress
+            }.getOrNull()
+        }.firstOrNull()
+    }
+
     private companion object {
         val secureRandom = SecureRandom()
+        const val MAC_LOCAL_HOST = "barrydeMacBook-Pro.local"
+        val MAC_LOCAL_HOST_CANDIDATES = listOf(
+            MAC_LOCAL_HOST
+        )
         const val DEFAULT_PROXY_PORT = 8888
         const val LOCATION_PERMISSION_REQUEST_CODE = 1
         const val LOCATION_POSITION = 0

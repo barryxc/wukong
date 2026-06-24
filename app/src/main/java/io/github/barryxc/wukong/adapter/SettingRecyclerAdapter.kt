@@ -1,8 +1,8 @@
 package io.github.barryxc.wukong.adapter
 
-import android.text.TextUtils
-import android.text.InputType
 import android.text.Editable
+import android.text.InputType
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.View
 import android.widget.AdapterView
@@ -155,7 +155,7 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
             button?.visibility = View.VISIBLE
             button?.text = when (title) {
                 LOCATION_TITLE -> "定位"
-                PROXY_TITLE -> "本机IP"
+                PROXY_TITLE -> "MAC IP"
                 else -> "随机"
             }
             button?.setOnClickListener {
@@ -173,7 +173,8 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
             editText.requestFocus()
         }
         val watcher = object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) =
+                Unit
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 data.value = s?.toString().orEmpty()
@@ -217,7 +218,7 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
                 parent: AdapterView<*>?,
                 view: View?,
                 position: Int,
-                id: Long
+                id: Long,
             ) {
                 val selectedValue = options.getOrNull(position)?.value.orEmpty()
                 val previousValue = data.value as? String
@@ -234,7 +235,8 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
     private fun selectOptions(title: String): List<SelectOption> {
         return when (title) {
             BRAND_TITLE -> listOf(SelectOption("不修改 / 原值", "")) +
-                DeviceProfiles.brands.map { SelectOption(it.label, it.brand) }
+                    DeviceProfiles.brands.map { SelectOption(it.label, it.brand) }
+
             MODEL_TITLE -> modelOptionsForBrand(currentBrand())
             else -> emptyList()
         }
@@ -252,10 +254,11 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
             title.contains("Android", ignoreCase = true) -> "1234567890abcdef"
             title.contains("Target", ignoreCase = true) ->
                 "com.example.app, com.example.demo"
+
             title == PACKAGE_NAME_TITLE -> "com.example.mock"
             title == BRAND_TITLE -> DEFAULT_BRAND
             title == MODEL_TITLE -> DEFAULT_MODEL
-            title.contains("Proxy", ignoreCase = true) -> "127.0.0.1:8888"
+            title.contains("Proxy", ignoreCase = true) -> "点击按钮解析 barry-mac.local"
             else -> "请输入"
         }
     }
@@ -271,6 +274,6 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
 
     private data class SelectOption(
         val label: String,
-        val value: String
+        val value: String,
     )
 }
