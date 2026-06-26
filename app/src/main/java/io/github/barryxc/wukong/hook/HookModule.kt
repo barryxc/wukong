@@ -5,6 +5,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.BuildConfig
+import io.github.barryxc.wukong.hook.core.HookDebugGuard
 import io.github.barryxc.wukong.hook.core.Starter
 import io.github.barryxc.wukong.hook.core.applicationRegistry
 import io.github.barryxc.wukong.hook.core.earlyInstallers
@@ -25,10 +26,9 @@ class HookModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
             return
         }
         Logger.logHookAPP(lpparam)
-        earlyInstallers.forEach { install ->
-            install(lpparam)
-        }
-        Starter.startHook(lpparam, applicationRegistry)
+        //如果需要调试，必须在 install hooks 之前，让 adb-jdwp 先链接上，才能hook，否则会导致调试进程校验失败
+        HookDebugGuard.waitForDebuggerBeforeInstallingHooks(lpparam.packageName, lpparam.appInfo)
+        Starter.startHook(lpparam, earlyInstallers, applicationRegistry)
     }
 
     @Throws(Throwable::class)

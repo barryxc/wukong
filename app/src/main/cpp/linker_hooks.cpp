@@ -112,7 +112,8 @@ bool should_skip_object(const char* name) {
     }
     return std::strstr(name, "libwukong_native.so") != nullptr
         || std::strstr(name, "/linker") != nullptr
-        || std::strstr(name, "/libc.so") != nullptr;
+        || std::strstr(name, "/libc.so") != nullptr
+        || is_art_debug_lib(name);
 }
 
 template <typename Relocation>
@@ -255,6 +256,10 @@ void install_hooks() {
 }
 
 void* hooked_dlopen(const char* filename, int flags) {
+    if (is_art_debug_lib(filename)
+            || should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_dlopen == nullptr ? nullptr : g_real_dlopen(filename, flags);
+    }
     void* result = g_real_dlopen == nullptr ? nullptr : g_real_dlopen(filename, flags);
     if (result != nullptr) {
         LOGI("dlopen loaded %s, rescan hooks", filename == nullptr ? "" : filename);
@@ -264,6 +269,12 @@ void* hooked_dlopen(const char* filename, int flags) {
 }
 
 void* hooked_android_dlopen_ext(const char* filename, int flags, const android_dlextinfo* extinfo) {
+    if (is_art_debug_lib(filename)
+            || should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_android_dlopen_ext == nullptr
+                ? nullptr
+                : g_real_android_dlopen_ext(filename, flags, extinfo);
+    }
     void* result = g_real_android_dlopen_ext == nullptr
             ? nullptr
             : g_real_android_dlopen_ext(filename, flags, extinfo);
@@ -275,6 +286,9 @@ void* hooked_android_dlopen_ext(const char* filename, int flags, const android_d
 }
 
 void* hooked_dlsym(void* handle, const char* symbol) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_dlsym == nullptr ? nullptr : g_real_dlsym(handle, symbol);
+    }
     if (void* replacement = replacement_for_dlsym(symbol)) {
         LOGI("dlsym hit %s", symbol);
         return replacement;
@@ -283,6 +297,9 @@ void* hooked_dlsym(void* handle, const char* symbol) {
 }
 
 void* hooked_dlvsym(void* handle, const char* symbol, const char* version) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_dlvsym == nullptr ? nullptr : g_real_dlvsym(handle, symbol, version);
+    }
     if (void* replacement = replacement_for_dlsym(symbol)) {
         LOGI("dlvsym hit %s", symbol);
         return replacement;
@@ -291,6 +308,12 @@ void* hooked_dlvsym(void* handle, const char* symbol, const char* version) {
 }
 
 void* hooked_loader_dlsym(void* handle, const char* symbol, const void* caller_addr) {
+    if (should_bypass_debugger_hook(caller_addr)
+            || should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_loader_dlsym == nullptr
+                ? nullptr
+                : g_real_loader_dlsym(handle, symbol, caller_addr);
+    }
     if (void* replacement = replacement_for_dlsym(symbol)) {
         LOGI("__loader_dlsym hit %s", symbol);
         return replacement;

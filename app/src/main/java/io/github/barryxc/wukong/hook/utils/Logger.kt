@@ -15,11 +15,11 @@ object Logger {
     }
 
     fun i(msg: String) {
-        Log.d(TAG, msg)
+        Log.i(TAG, msg)
     }
 
     fun i(format: String, vararg args: Any?) {
-        Log.d(TAG, String.format(format, *args))
+        Log.i(TAG, String.format(format, *args))
     }
 
     fun e(msg: String) {

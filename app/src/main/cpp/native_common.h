@@ -5,6 +5,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <link.h>
+#include <pthread.h>
 #include <sys/stat.h>
 #include <sys/system_properties.h>
 #include <unistd.h>
@@ -65,6 +66,8 @@ extern Popen g_real_popen;
 
 void load_originals();
 void install_hooks();
+bool is_art_debug_lib(const char* name);
+bool should_bypass_debugger_hook(const void* caller_addr);
 
 std::string fake_property_value(const char* key);
 std::string fake_property_value(const prop_info* info);

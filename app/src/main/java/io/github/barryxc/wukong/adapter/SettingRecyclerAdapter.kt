@@ -34,6 +34,9 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
         @JvmField
         val TYPE_SELECT = 3
 
+        @JvmField
+        val TYPE_READONLY = 4
+
         const val ANDROID_ID_TITLE = "Android ID"
         const val LOCATION_TITLE = "Location (lat,lng,alt,accuracy)"
         const val BRAND_TITLE = "Brand"
@@ -63,14 +66,12 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
     constructor(data: List<ItemData>?) : super(data)
 
     override fun getLayoutId(viewType: Int): Int {
-        return if (viewType == TYPE_BUTTON) {
-            R.layout.item_setting_button
-        } else if (viewType == TYPE_EDITTEXT) {
-            R.layout.item_setting_editext
-        } else if (viewType == TYPE_SELECT) {
-            R.layout.item_setting_select
-        } else {
-            R.layout.item_setting_switch
+        return when (viewType) {
+            TYPE_BUTTON -> R.layout.item_setting_button
+            TYPE_EDITTEXT -> R.layout.item_setting_editext
+            TYPE_SELECT -> R.layout.item_setting_select
+            TYPE_READONLY -> R.layout.item_setting_readonly
+            else -> R.layout.item_setting_switch
         }
     }
 
@@ -85,6 +86,21 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
             TYPE_BUTTON -> holder?.let { setTypeButtonView(it, data, position) }
             TYPE_EDITTEXT -> holder?.let { setTypeEdittextView(it, data, position) }
             TYPE_SELECT -> holder?.let { setTypeSelectView(it, data, position) }
+            TYPE_READONLY -> holder?.let { setTypeReadonlyView(it, data, position) }
+        }
+    }
+
+    private fun setTypeReadonlyView(holder: BaseViewHolder, data: ItemData, position: Int) {
+        holder.setText(R.id.tv_key, data.key)
+        val valueView = holder.getView<TextView>(R.id.tv_value)
+        val enabled = data.value as? Boolean ?: false
+        valueView?.text = enabled.toString()
+        valueView?.alpha = if (enabled) 1.0f else 0.62f
+
+        val describeView = holder.getView<TextView>(R.id.tv_describe)
+        describeView?.text = data.describe.orEmpty()
+        holder.itemView.setOnClickListener {
+            mOnItemClickListener?.onItemClick(position, false, null)
         }
     }
 
@@ -99,7 +115,12 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
         }
         val switchCompat = holder.getView<SwitchCompat>(R.id.setting_switch)
         switchCompat!!.isChecked = data.value as Boolean
+        switchCompat.isEnabled = data.enabled
+        switchCompat.alpha = if (data.enabled) 1.0f else 0.55f
         switchCompat.setOnCheckedChangeListener(CompoundButton.OnCheckedChangeListener { buttonView, isChecked -> //防止setChecked的时候触发监听
+            if (!data.enabled) {
+                return@OnCheckedChangeListener
+            }
             if (!buttonView.isPressed) {
                 return@OnCheckedChangeListener
             }
@@ -131,6 +152,8 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
         }
         editText.setText(data.value as? String ?: "")
         editText.setSelection(editText.text?.length ?: 0)
+        editText.isEnabled = data.enabled
+        editText.alpha = if (data.enabled) 1.0f else 0.65f
         if (title.contains("Target", ignoreCase = true)) {
             editText.minLines = 2
             editText.maxLines = 4
@@ -146,12 +169,12 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
             tvDescribe?.text = data.describe
         }
         val button = holder.getView<AppCompatButton>(R.id.setting_button)
-        if (
+        if (data.enabled && (
             title == ANDROID_ID_TITLE ||
             title == LOCATION_TITLE ||
             title == PACKAGE_NAME_TITLE ||
             title == PROXY_TITLE
-        ) {
+        )) {
             button?.visibility = View.VISIBLE
             button?.text = when (title) {
                 LOCATION_TITLE -> "定位"
@@ -167,7 +190,7 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
         }
         val clearButton = holder.getView<AppCompatImageButton>(R.id.clear_button)
         clearButton?.visibility =
-            if (editText.text.isNullOrEmpty()) View.GONE else View.VISIBLE
+            if (data.enabled && !editText.text.isNullOrEmpty()) View.VISIBLE else View.GONE
         clearButton?.setOnClickListener {
             editText.text?.clear()
             editText.requestFocus()
@@ -177,6 +200,9 @@ class SettingRecyclerAdapter : BaseRecyclerAdapter<ItemData> {
                 Unit
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                if (!data.enabled) {
+                    return
+                }
                 data.value = s?.toString().orEmpty()
                 clearButton?.visibility =
                     if (s.isNullOrEmpty()) View.GONE else View.VISIBLE

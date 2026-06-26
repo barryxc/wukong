@@ -94,6 +94,9 @@ const prop_info* fake_prop_info_for(const char* name) {
 }
 
 int hooked_system_property_get(const char* name, char* value) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_property_get == nullptr ? 0 : g_real_property_get(name, value);
+    }
     const auto fake = fake_property_value(name);
     if (!fake.empty() && value != nullptr) {
         std::strncpy(value, fake.c_str(), PROP_VALUE_MAX - 1);
@@ -105,6 +108,17 @@ int hooked_system_property_get(const char* name, char* value) {
 }
 
 int hooked_libcutils_property_get(const char* name, char* value, const char* default_value) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        if (g_real_libcutils_property_get != nullptr) {
+            return g_real_libcutils_property_get(name, value, default_value);
+        }
+        if (default_value != nullptr && value != nullptr) {
+            std::strncpy(value, default_value, PROP_VALUE_MAX - 1);
+            value[PROP_VALUE_MAX - 1] = '\0';
+            return static_cast<int>(std::strlen(value));
+        }
+        return 0;
+    }
     const auto fake = fake_property_value(name);
     if (!fake.empty() && value != nullptr) {
         std::strncpy(value, fake.c_str(), PROP_VALUE_MAX - 1);
@@ -124,6 +138,9 @@ int hooked_libcutils_property_get(const char* name, char* value, const char* def
 }
 
 const prop_info* hooked_system_property_find(const char* name) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_property_find == nullptr ? nullptr : g_real_property_find(name);
+    }
     if (!fake_property_value(name).empty()) {
         const prop_info* info = fake_prop_info_for(name);
         cache_prop_name(info, name);
@@ -135,6 +152,9 @@ const prop_info* hooked_system_property_find(const char* name) {
 }
 
 int hooked_system_property_read(const prop_info* info, char* name, char* value) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_property_read == nullptr ? 0 : g_real_property_read(info, name, value);
+    }
     const auto fake = fake_property_value(info);
     if (!fake.empty()) {
         pthread_mutex_lock(&g_lock);
@@ -164,6 +184,12 @@ void hooked_system_property_read_callback(
         void (*callback)(void*, const char*, const char*, uint32_t),
         void* cookie) {
     if (callback == nullptr) {
+        return;
+    }
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        if (g_real_property_read_callback != nullptr) {
+            g_real_property_read_callback(info, callback, cookie);
+        }
         return;
     }
     const auto fake = fake_property_value(info);

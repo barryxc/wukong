@@ -86,62 +86,97 @@ void log_suspicious_command(const char* api, const char* command) {
 }
 
 int hooked_open(const char* pathname, int flags, ...) {
-    log_suspicious_path("open", pathname);
     mode_t mode = 0;
     if ((flags & O_CREAT) != 0) {
         va_list args;
         va_start(args, flags);
         mode = static_cast<mode_t>(va_arg(args, int));
         va_end(args);
+        if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+            return g_real_open == nullptr ? -1 : g_real_open(pathname, flags, mode);
+        }
+        log_suspicious_path("open", pathname);
         return g_real_open == nullptr ? -1 : g_real_open(pathname, flags, mode);
     }
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_open == nullptr ? -1 : g_real_open(pathname, flags);
+    }
+    log_suspicious_path("open", pathname);
     return g_real_open == nullptr ? -1 : g_real_open(pathname, flags);
 }
 
 int hooked_openat(int dirfd, const char* pathname, int flags, ...) {
-    log_suspicious_path("openat", pathname);
     mode_t mode = 0;
     if ((flags & O_CREAT) != 0) {
         va_list args;
         va_start(args, flags);
         mode = static_cast<mode_t>(va_arg(args, int));
         va_end(args);
+        if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+            return g_real_openat == nullptr ? -1 : g_real_openat(dirfd, pathname, flags, mode);
+        }
+        log_suspicious_path("openat", pathname);
         return g_real_openat == nullptr ? -1 : g_real_openat(dirfd, pathname, flags, mode);
     }
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_openat == nullptr ? -1 : g_real_openat(dirfd, pathname, flags);
+    }
+    log_suspicious_path("openat", pathname);
     return g_real_openat == nullptr ? -1 : g_real_openat(dirfd, pathname, flags);
 }
 
 int hooked_access(const char* pathname, int mode) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_access == nullptr ? -1 : g_real_access(pathname, mode);
+    }
     log_suspicious_path("access", pathname);
     return g_real_access == nullptr ? -1 : g_real_access(pathname, mode);
 }
 
 int hooked_stat(const char* pathname, struct stat* statbuf) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_stat == nullptr ? -1 : g_real_stat(pathname, statbuf);
+    }
     log_suspicious_path("stat", pathname);
     return g_real_stat == nullptr ? -1 : g_real_stat(pathname, statbuf);
 }
 
 int hooked_lstat(const char* pathname, struct stat* statbuf) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_lstat == nullptr ? -1 : g_real_lstat(pathname, statbuf);
+    }
     log_suspicious_path("lstat", pathname);
     return g_real_lstat == nullptr ? -1 : g_real_lstat(pathname, statbuf);
 }
 
 ssize_t hooked_readlink(const char* pathname, char* buf, size_t bufsiz) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_readlink == nullptr ? -1 : g_real_readlink(pathname, buf, bufsiz);
+    }
     log_suspicious_path("readlink", pathname);
     return g_real_readlink == nullptr ? -1 : g_real_readlink(pathname, buf, bufsiz);
 }
 
 FILE* hooked_fopen(const char* pathname, const char* mode) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_fopen == nullptr ? nullptr : g_real_fopen(pathname, mode);
+    }
     log_suspicious_path("fopen", pathname);
     return g_real_fopen == nullptr ? nullptr : g_real_fopen(pathname, mode);
 }
 
 int hooked_system(const char* command) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_system == nullptr ? -1 : g_real_system(command);
+    }
     log_suspicious_command("system", command);
     return g_real_system == nullptr ? -1 : g_real_system(command);
 }
 
 FILE* hooked_popen(const char* command, const char* type) {
+    if (should_bypass_debugger_hook(__builtin_return_address(0))) {
+        return g_real_popen == nullptr ? nullptr : g_real_popen(command, type);
+    }
     log_suspicious_command("popen", command);
     return g_real_popen == nullptr ? nullptr : g_real_popen(command, type);
 }

@@ -1,6 +1,8 @@
 #include "native_common.h"
 
-#include <pthread.h>
+#include <sys/prctl.h>
+
+#include <cstring>
 
 namespace wukong {
 
@@ -28,6 +30,30 @@ Readlink g_real_readlink = nullptr;
 Fopen g_real_fopen = nullptr;
 System g_real_system = nullptr;
 Popen g_real_popen = nullptr;
+
+bool is_art_debug_lib(const char* name) {
+    return name != nullptr
+        && (std::strstr(name, "libjdwp.so") != nullptr
+            || std::strstr(name, "libopenjdkjvmti.so") != nullptr
+            || std::strstr(name, "libadbconnection.so") != nullptr
+            || std::strstr(name, "libart.so") != nullptr
+            || std::strstr(name, "libartbase.so") != nullptr
+            || std::strstr(name, "libartpalette.so") != nullptr
+            || std::strstr(name, "/apex/com.android.art/") != nullptr);
+}
+
+bool should_bypass_debugger_hook(const void* caller_addr) {
+    char thread_name[16] = {};
+    if (prctl(PR_GET_NAME, reinterpret_cast<unsigned long>(thread_name), 0, 0, 0) == 0
+            && std::strstr(thread_name, "JDWP") != nullptr) {
+        return true;
+    }
+
+    Dl_info info = {};
+    return caller_addr != nullptr
+        && dladdr(caller_addr, &info) != 0
+        && is_art_debug_lib(info.dli_fname);
+}
 
 void load_originals() {
     void* libc = dlopen("libc.so", RTLD_NOW);

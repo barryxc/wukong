@@ -51,6 +51,13 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         Logger.d("Process tid:" + Process.myTid())
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::settingAdapter.isInitialized && mItemData.size > SKIP_JAVA_HOOKS_PROP_POSITION) {
+            refreshSystemPropRows()
+        }
+    }
+
     fun checkPermission(): Boolean {
         return hasFineLocationPermission() || hasCoarseLocationPermission()
     }
@@ -103,6 +110,24 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
                 currentProxyDefault(),
                 "HTTP proxy (host:port)",
                 SettingRecyclerAdapter.Companion.TYPE_EDITTEXT
+            )
+        )
+        mItemData.add(
+            ItemData(
+                "debug.wukong.wait_for_debugger",
+                systemProperty(PROP_WAIT_FOR_DEBUGGER).toBoolean(),
+                "adb shell setprop debug.wukong.wait_for_debugger true|false",
+                SettingRecyclerAdapter.Companion.TYPE_READONLY,
+                false,
+            )
+        )
+        mItemData.add(
+            ItemData(
+                "debug.wukong.skip_java_hooks",
+                systemProperty(PROP_SKIP_JAVA_HOOKS).toBoolean(),
+                "adb shell setprop debug.wukong.skip_java_hooks true|false",
+                SettingRecyclerAdapter.Companion.TYPE_READONLY,
+                false,
             )
         )
     }
@@ -189,11 +214,14 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
             PROXY_POSITION -> {
                 fillMacProxyIp()
             }
+
+            WAIT_FOR_DEBUGGER_PROP_POSITION,
+            SKIP_JAVA_HOOKS_PROP_POSITION -> showSystemPropHint()
         }
     }
 
     private fun saveAllSettings() {
-        mCacheData.edit {
+        mCacheData.edit(commit = true) {
             putString(Constant.Companion.KEY_MOCK_GPS_LOCATION, valueAt(LOCATION_POSITION))
             putString(Constant.Companion.KEY_MOCK_ANDROID_ID, valueAt(ANDROID_ID_POSITION))
             putString(Constant.Companion.KEY_MOCK_BRAND, valueAt(BRAND_POSITION))
@@ -208,6 +236,28 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
 
     private fun valueAt(position: Int): String {
         return mItemData.getOrNull(position)?.value as? String ?: ""
+    }
+
+    private fun showSystemPropHint() {
+        Toast.makeText(this, "调试开关只读，请使用 adb shell setprop 配置", Toast.LENGTH_SHORT).show()
+        refreshSystemPropRows()
+    }
+
+    private fun refreshSystemPropRows() {
+        mItemData[WAIT_FOR_DEBUGGER_PROP_POSITION].value =
+            systemProperty(PROP_WAIT_FOR_DEBUGGER).toBoolean()
+        mItemData[SKIP_JAVA_HOOKS_PROP_POSITION].value =
+            systemProperty(PROP_SKIP_JAVA_HOOKS).toBoolean()
+        settingAdapter.notifyItemRangeChanged(WAIT_FOR_DEBUGGER_PROP_POSITION, 2)
+    }
+
+    private fun systemProperty(key: String): String {
+        return runCatching {
+            val systemPropertiesClass = Class.forName("android.os.SystemProperties")
+            systemPropertiesClass
+                .getDeclaredMethod("get", String::class.java, String::class.java)
+                .invoke(null, key, "") as? String ?: ""
+        }.getOrDefault("")
     }
 
     private fun generateAndroidId(): String {
@@ -403,6 +453,10 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         const val MODEL_POSITION = 3
         const val PACKAGE_NAME_POSITION = 4
         const val PROXY_POSITION = 5
+        const val WAIT_FOR_DEBUGGER_PROP_POSITION = 6
+        const val SKIP_JAVA_HOOKS_PROP_POSITION = 7
         const val KEY_LOCATION_PERMISSION_REQUESTED = "location_permission_requested"
+        const val PROP_WAIT_FOR_DEBUGGER = "debug.wukong.wait_for_debugger"
+        const val PROP_SKIP_JAVA_HOOKS = "debug.wukong.skip_java_hooks"
     }
 }
