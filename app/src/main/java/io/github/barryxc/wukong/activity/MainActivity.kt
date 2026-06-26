@@ -1,11 +1,13 @@
 package io.github.barryxc.wukong.activity
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.view.Menu
@@ -30,6 +32,7 @@ import io.github.barryxc.wukong.shared.DEFAULT_PROXY
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.security.SecureRandom
+import java.util.concurrent.TimeUnit
 
 
 class MainActivity : AppCompatActivity(), OnItemClickListener {
@@ -114,20 +117,18 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         )
         mItemData.add(
             ItemData(
-                "debug.wukong.wait_for_debugger",
+                PROP_WAIT_FOR_DEBUGGER,
                 systemProperty(PROP_WAIT_FOR_DEBUGGER).toBoolean(),
-                "adb shell setprop debug.wukong.wait_for_debugger true|false",
-                SettingRecyclerAdapter.Companion.TYPE_READONLY,
-                false,
+                "su -c setprop debug.wukong.wait_for_debugger true|false",
+                SettingRecyclerAdapter.Companion.TYPE_SWITCH,
             )
         )
         mItemData.add(
             ItemData(
-                "debug.wukong.skip_java_hooks",
+                PROP_SKIP_JAVA_HOOKS,
                 systemProperty(PROP_SKIP_JAVA_HOOKS).toBoolean(),
-                "adb shell setprop debug.wukong.skip_java_hooks true|false",
-                SettingRecyclerAdapter.Companion.TYPE_READONLY,
-                false,
+                "su -c setprop debug.wukong.skip_java_hooks true|false",
+                SettingRecyclerAdapter.Companion.TYPE_SWITCH,
             )
         )
     }
@@ -216,7 +217,8 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
             }
 
             WAIT_FOR_DEBUGGER_PROP_POSITION,
-            SKIP_JAVA_HOOKS_PROP_POSITION -> showSystemPropHint()
+            SKIP_JAVA_HOOKS_PROP_POSITION,
+                -> setSystemPropFromSwitch(position, isChecked)
         }
     }
 
@@ -238,17 +240,35 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         return mItemData.getOrNull(position)?.value as? String ?: ""
     }
 
-    private fun showSystemPropHint() {
-        Toast.makeText(this, "调试开关只读，请使用 adb shell setprop 配置", Toast.LENGTH_SHORT).show()
-        refreshSystemPropRows()
-    }
-
     private fun refreshSystemPropRows() {
         mItemData[WAIT_FOR_DEBUGGER_PROP_POSITION].value =
             systemProperty(PROP_WAIT_FOR_DEBUGGER).toBoolean()
         mItemData[SKIP_JAVA_HOOKS_PROP_POSITION].value =
             systemProperty(PROP_SKIP_JAVA_HOOKS).toBoolean()
         settingAdapter.notifyItemRangeChanged(WAIT_FOR_DEBUGGER_PROP_POSITION, 2)
+    }
+
+    private fun setSystemPropFromSwitch(position: Int, enabled: Boolean) {
+        val propName = when (position) {
+            WAIT_FOR_DEBUGGER_PROP_POSITION -> PROP_WAIT_FOR_DEBUGGER
+            SKIP_JAVA_HOOKS_PROP_POSITION -> PROP_SKIP_JAVA_HOOKS
+            else -> return
+        }
+        Toast.makeText(this, "正在通过 su 修改 $propName", Toast.LENGTH_SHORT).show()
+        Thread {
+            val setResult = setSystemPropertyBySu(propName, enabled)
+            val currentValue = systemProperty(propName).toBoolean()
+            runOnUiThread {
+                mItemData[position].value = currentValue
+                settingAdapter.notifyItemChanged(position)
+                val message = if (setResult.success && currentValue == enabled) {
+                    "已更新 $propName=$enabled"
+                } else {
+                    "修改失败：${setResult.message}"
+                }
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            }
+        }.start()
     }
 
     private fun systemProperty(key: String): String {
@@ -258,6 +278,51 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
                 .getDeclaredMethod("get", String::class.java, String::class.java)
                 .invoke(null, key, "") as? String ?: ""
         }.getOrDefault("")
+    }
+
+    private fun setSystemPropertyBySu(key: String, enabled: Boolean): SystemPropSetResult {
+        return runCatching {
+            val value = enabled.toString()
+            val process = ProcessBuilder("su", "-c", "setprop $key $value")
+                .redirectErrorStream(true)
+                .start()
+            val finished = waitForProcess(process, SU_COMMAND_TIMEOUT_MILLIS)
+            if (!finished) {
+                process.destroy()
+                return SystemPropSetResult(false, "su 执行超时")
+            }
+            val output = process.inputStream.bufferedReader().use { it.readText().trim() }
+            val exitCode = process.exitValue()
+            if (exitCode == 0) {
+                SystemPropSetResult(true, "")
+            } else {
+                SystemPropSetResult(false, output.ifBlank { "su 返回 exitCode=$exitCode" })
+            }
+        }.getOrElse {
+            SystemPropSetResult(false, it.message ?: "无法执行 su")
+        }
+    }
+
+    private fun waitForProcess(process: java.lang.Process, timeoutMillis: Long): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            return process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)
+        }
+        return waitForProcessCompat(process, timeoutMillis)
+    }
+
+    private fun waitForProcessCompat(process: java.lang.Process, timeoutMillis: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (System.currentTimeMillis() < deadline) {
+            runCatching {
+                process.exitValue()
+                return true
+            }
+            Thread.sleep(SU_COMMAND_POLL_INTERVAL_MILLIS)
+        }
+        return runCatching {
+            process.exitValue()
+            true
+        }.getOrDefault(false)
     }
 
     private fun generateAndroidId(): String {
@@ -288,7 +353,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
     }
 
     private fun fillCurrentLocation() {
-        if (!hasFineLocationPermission()) {
+        if (!checkPermission()) {
             Toast.makeText(this, "正在请求定位权限", Toast.LENGTH_SHORT).show()
             requestLocationPermission()
             return
@@ -341,6 +406,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun currentLocation(): Location? {
         val locationManager =
             getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
@@ -418,7 +484,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
                         "未解析到 $MAC_LOCAL_HOST，请确认手机和 Mac 在同一局域网",
                         Toast.LENGTH_SHORT
                     ).show()
-                    ip = currentWifiGatewayIp()
+                    ip = currentWifiDeviceIp()
                 }
                 if (ip == null) {
                     return@runOnUiThread
@@ -439,6 +505,11 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         }.firstOrNull()
     }
 
+    private data class SystemPropSetResult(
+        val success: Boolean,
+        val message: String,
+    )
+
     private companion object {
         val secureRandom = SecureRandom()
         const val MAC_LOCAL_HOST = "barrydeMacBook-Pro.local"
@@ -458,5 +529,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         const val KEY_LOCATION_PERMISSION_REQUESTED = "location_permission_requested"
         const val PROP_WAIT_FOR_DEBUGGER = "debug.wukong.wait_for_debugger"
         const val PROP_SKIP_JAVA_HOOKS = "debug.wukong.skip_java_hooks"
+        const val SU_COMMAND_TIMEOUT_MILLIS = 5_000L
+        const val SU_COMMAND_POLL_INTERVAL_MILLIS = 50L
     }
 }
