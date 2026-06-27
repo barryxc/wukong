@@ -12,11 +12,11 @@ import io.github.barryxc.wukong.hook.utils.Logger
 import java.util.concurrent.Executor
 import java.util.function.Consumer
 
-object HookLocation : Hook {
+object HookLocation : ApplicationHook {
     @Volatile
     private var installed = false
 
-    override fun doHook(
+    override fun installWithApplication(
         application: Application, loadPackageParam: XC_LoadPackage.LoadPackageParam
     ) {
         install()

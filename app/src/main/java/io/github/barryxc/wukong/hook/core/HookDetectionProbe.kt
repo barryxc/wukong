@@ -9,13 +9,13 @@ import io.github.barryxc.wukong.hook.utils.Logger
 import java.io.File
 import java.lang.ProcessBuilder
 
-object HookDetectionProbe : Hook {
+object HookDetectionProbe : ApplicationHook {
     @Volatile
     private var installed = false
 
-    override fun doHook(
+    override fun installWithApplication(
         application: Application,
-        loadPackageParam: XC_LoadPackage.LoadPackageParam
+        loadPackageParam: XC_LoadPackage.LoadPackageParam,
     ) {
         install()
     }

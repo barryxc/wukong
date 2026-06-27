@@ -9,12 +9,12 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.hook.utils.Logger
 import java.util.concurrent.atomic.AtomicBoolean
 
-object HookSystemPMS : Hook {
+object HookSystemPMS : ApplicationHook {
     private val installed = AtomicBoolean(false)
 
-    override fun doHook(
+    override fun installWithApplication(
         application: Application,
-        loadPackageParam: XC_LoadPackage.LoadPackageParam
+        loadPackageParam: XC_LoadPackage.LoadPackageParam,
     ) {
         if (!installed.compareAndSet(false, true)) {
             return

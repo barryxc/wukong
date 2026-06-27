@@ -22,13 +22,13 @@ import java.net.URL
  *
  * 代理地址由 UI 配置（[Constant.KEY_MOCK_PROXY]，格式 `host:port`），为空时不生效，保持原直连行为。
  */
-object HookNetworkProxy : Hook {
+object HookNetworkProxy : ApplicationHook {
     @Volatile
     private var installed = false
 
     private val hookedProxySelectorClasses = mutableSetOf<String>()
 
-    override fun doHook(
+    override fun installWithApplication(
         application: Application, loadPackageParam: XC_LoadPackage.LoadPackageParam
     ) {
         install(loadPackageParam)

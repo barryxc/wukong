@@ -7,8 +7,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.BuildConfig
 import io.github.barryxc.wukong.hook.core.HookDebugGuard
 import io.github.barryxc.wukong.hook.core.HookInstaller
-import io.github.barryxc.wukong.hook.core.applicationRegistry
-import io.github.barryxc.wukong.hook.core.earlyInstallers
+import io.github.barryxc.wukong.hook.core.applicationHookRegistry
 import io.github.barryxc.wukong.hook.utils.Logger
 
 // LSPosed/Xposed 会在需要注入的进程内加载模块入口类。
@@ -32,7 +31,7 @@ class HookModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
         Logger.logHookAPP(lpparam)
         //如果需要调试，必须在 install hooks 之前，让 adb-jdwp 先链接上，才能hook，否则会导致调试进程校验失败
         HookDebugGuard.waitForDebuggerBeforeInstallingHooks(lpparam.packageName, lpparam.appInfo)
-        HookInstaller.installLifecycleHooksOnPackageLoad(lpparam, earlyInstallers, applicationRegistry)
+        HookInstaller.installLifecycleHooksOnPackageLoad(lpparam, applicationHookRegistry)
     }
 
     @Throws(Throwable::class)

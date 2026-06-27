@@ -1,5 +1,6 @@
 package io.github.barryxc.wukong.hook.core
 
+import android.app.Application
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import de.robv.android.xposed.XC_MethodHook
@@ -9,8 +10,15 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.hook.utils.Logger
 import java.util.concurrent.atomic.AtomicBoolean
 
-object HookInstalledPackages {
+object HookInstalledPackages : ApplicationHook {
     private val installed = AtomicBoolean(false)
+
+    override fun installWithApplication(
+        application: Application,
+        loadPackageParam: XC_LoadPackage.LoadPackageParam,
+    ) {
+        install(loadPackageParam)
+    }
 
     fun install(loadPackageParam: XC_LoadPackage.LoadPackageParam) {
         if (!installed.compareAndSet(false, true)) {

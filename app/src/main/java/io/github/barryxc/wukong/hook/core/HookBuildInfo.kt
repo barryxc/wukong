@@ -11,15 +11,15 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.hook.utils.Logger
 import io.github.barryxc.wukong.shared.DeviceProfiles
 
-object HookBuildInfo : Hook {
+object HookBuildInfo : ApplicationHook {
     @Volatile
     private var installed = false
 
-    override fun doHook(
+    override fun installWithApplication(
         application: Application,
-        loadPackageParam: XC_LoadPackage.LoadPackageParam
+        loadPackageParam: XC_LoadPackage.LoadPackageParam,
     ) {
-        applyBuildInfo()
+        install()
         scheduleBuildInfoRefreshes()
     }
 

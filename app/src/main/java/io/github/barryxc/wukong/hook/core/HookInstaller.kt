@@ -12,7 +12,7 @@ import io.github.barryxc.wukong.hook.utils.Logger
 // 1. package load 时机：handleLoadPackage 阶段调用 installLifecycleHooksOnPackageLoad()。
 //    此时通常还没有可用的 Application 实例，所以这里只注册 Application.attach/onCreate 的 hook。
 // 2. Application 可用时机：目标应用执行 Application.attach 或 onCreate 时，
-//    调用 installBusinessHooksWithApplication()，拿到 Application 后再安装真正的业务 Java hooks。
+//    调用 installBusinessHooksWithApplication()，拿到 Application 后按统一注册表安装业务 Java hooks。
 object HookInstaller {
     private val installedPackages = mutableSetOf<String>()
 
@@ -20,19 +20,17 @@ object HookInstaller {
     // 职责：只安装 Application.attach/onCreate 的生命周期 hook，不直接安装依赖 Application/Context 的业务 hook。
     fun installLifecycleHooksOnPackageLoad(
         loadPackageParam: XC_LoadPackage.LoadPackageParam,
-        earlyInstallers: Array<(XC_LoadPackage.LoadPackageParam) -> Unit>,
-        registry: Array<Hook>,
+        registry: Array<ApplicationHook>,
     ) {
-        hookApplicationAttach(loadPackageParam, earlyInstallers, registry)
-        hookApplicationOnCreate(loadPackageParam, earlyInstallers, registry)
+        hookApplicationAttach(loadPackageParam, registry)
+        hookApplicationOnCreate(loadPackageParam, registry)
     }
 
     // Application.attach(Context) 是较早能拿到 Application/Context 的时机。
     // afterHookedMethod 保证原 attach 已经完成，targetApp 上下文状态更完整。
     private fun hookApplicationAttach(
         loadPackageParam: XC_LoadPackage.LoadPackageParam,
-        earlyInstallers: Array<(XC_LoadPackage.LoadPackageParam) -> Unit>,
-        registry: Array<Hook>,
+        registry: Array<ApplicationHook>,
     ) {
         XposedHelpers.findAndHookMethod(
             Application::class.java,
@@ -44,7 +42,6 @@ object HookInstaller {
                     installBusinessHooksWithApplication(
                         param.thisObject as Application,
                         loadPackageParam,
-                        earlyInstallers,
                         registry
                     )
                 }
@@ -55,8 +52,7 @@ object HookInstaller {
     // 仍可在 Application.onCreate 执行前完成 hooks 安装。
     private fun hookApplicationOnCreate(
         loadPackageParam: XC_LoadPackage.LoadPackageParam,
-        earlyInstallers: Array<(XC_LoadPackage.LoadPackageParam) -> Unit>,
-        registry: Array<Hook>,
+        registry: Array<ApplicationHook>,
     ) {
         XposedHelpers.findAndHookMethod(
             Application::class.java, "onCreate", object : XC_MethodHook() {
@@ -65,7 +61,6 @@ object HookInstaller {
                     installBusinessHooksWithApplication(
                         param.thisObject as Application,
                         loadPackageParam,
-                        earlyInstallers,
                         registry
                     )
                 }
@@ -78,8 +73,7 @@ object HookInstaller {
     private fun installBusinessHooksWithApplication(
         targetApp: Application,
         loadPackageParam: XC_LoadPackage.LoadPackageParam,
-        earlyInstallers: Array<(XC_LoadPackage.LoadPackageParam) -> Unit>,
-        registry: Array<Hook>,
+        registry: Array<ApplicationHook>,
     ) {
         synchronized(installedPackages) {
             if (!installedPackages.add(loadPackageParam.packageName)) {
@@ -91,16 +85,9 @@ object HookInstaller {
         }
         Bridge.init(targetApp)
         Logger.i("[HookDebug] install Java hooks for ${loadPackageParam.packageName}")
-        earlyInstallers.forEach { installer ->
+        registry.forEach { hook ->
             try {
-                installer(loadPackageParam)
-            } catch (e: Throwable) {
-                e.printStackTrace(System.err)
-            }
-        }
-        registry.forEach {
-            try {
-                it.doHook(targetApp, loadPackageParam)
+                hook.installWithApplication(targetApp, loadPackageParam)
             } catch (e: Throwable) {
                 e.printStackTrace(System.err)
             }

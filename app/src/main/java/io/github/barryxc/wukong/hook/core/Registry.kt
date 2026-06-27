@@ -1,18 +1,12 @@
 package io.github.barryxc.wukong.hook.core
 
-import de.robv.android.xposed.callbacks.XC_LoadPackage
-
-val earlyInstallers = arrayOf<(XC_LoadPackage.LoadPackageParam) -> Unit>(
-    { HookDetectionProbe.install() },
-    { HookBuildInfo.install() },
-    { HookAndroidId.install() },
-    { HookLocation.install() },
-    { loadPackageParam -> HookInstalledPackages.install(loadPackageParam) },
-    { loadPackageParam -> HookNetworkProxy.install(loadPackageParam) },
-)
-
-val applicationRegistry: Array<Hook> = arrayOf(
+// 统一注册表：所有 hooks 都在 Application 可用后安装。
+val applicationHookRegistry: Array<ApplicationHook> = arrayOf(
     HookDetectionProbe,
     HookBuildInfo,
+    HookAndroidId,
+    HookLocation,
+    HookInstalledPackages,
+    HookNetworkProxy,
     HookSystemPMS,
 )

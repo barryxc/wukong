@@ -13,13 +13,13 @@ import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.hook.utils.Logger
 
-object HookAndroidId : Hook {
+object HookAndroidId : ApplicationHook {
     @Volatile
     private var installed = false
 
-    override fun doHook(
+    override fun installWithApplication(
         application: Application,
-        loadPackageParam: XC_LoadPackage.LoadPackageParam
+        loadPackageParam: XC_LoadPackage.LoadPackageParam,
     ) {
         install()
     }
