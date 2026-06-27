@@ -4,6 +4,7 @@ import android.app.Application
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import android.os.SystemClock
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
@@ -81,6 +82,9 @@ object HookLocation : ApplicationHook {
     }
 
     private fun hookCurrentLocation() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return
+        }
         LocationManager::class.java.declaredMethods
             .filter { it.name == "getCurrentLocation" }
             .forEach { method ->

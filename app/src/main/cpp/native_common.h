@@ -73,6 +73,7 @@ std::string fake_property_value(const char* key);
 std::string fake_property_value(const prop_info* info);
 void cache_prop_name(const prop_info* info, const char* name);
 const prop_info* fake_prop_info_for(const char* name);
+void clear_fake_prop_infos_locked();
 
 int hooked_system_property_get(const char* name, char* value);
 int hooked_libcutils_property_get(const char* name, char* value, const char* default_value);

@@ -42,10 +42,10 @@
         android:contentDescription="@null"
         android:importantForAccessibility="no"
         android:src="@drawable/ic_arrow_drop_down_24"
-        android:tint="@color/colorPrimary"
         app:layout_constraintBottom_toBottomOf="@+id/setting_spinner"
         app:layout_constraintEnd_toEndOf="@+id/setting_spinner"
-        app:layout_constraintTop_toTopOf="@+id/setting_spinner" />
+        app:layout_constraintTop_toTopOf="@+id/setting_spinner"
+        app:tint="@color/colorPrimary" />
 
     <View
         android:layout_width="0dp"

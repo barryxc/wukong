@@ -93,6 +93,13 @@ const prop_info* fake_prop_info_for(const char* name) {
     return info;
 }
 
+void clear_fake_prop_infos_locked() {
+    for (const auto& item : g_fake_prop_infos) {
+        delete reinterpret_cast<FakePropInfo*>(const_cast<prop_info*>(item.second));
+    }
+    g_fake_prop_infos.clear();
+}
+
 int hooked_system_property_get(const char* name, char* value) {
     if (should_bypass_debugger_hook(__builtin_return_address(0))) {
         return g_real_property_get == nullptr ? 0 : g_real_property_get(name, value);

@@ -2,6 +2,7 @@ package io.github.barryxc.wukong.hook.core
 
 import android.app.Application
 import android.net.Network
+import android.os.Build
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
@@ -184,6 +185,9 @@ object HookNetworkProxy : ApplicationHook {
      * 转调带 [Proxy] 的重载可以同时保留 Network 绑定和强制代理语义。
      */
     private fun hookNetworkOpenConnection() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return
+        }
         runCatching {
             XposedHelpers.findAndHookMethod(
                 Network::class.java, "openConnection", URL::class.java, object : XC_MethodHook() {

@@ -17,6 +17,7 @@ Java_io_github_barryxc_wukong_hook_core_NativeBuildInfoHook_nativeInstall(
     pthread_mutex_lock(&wukong::g_lock);
     wukong::g_properties.clear();
     wukong::g_prop_names.clear();
+    wukong::clear_fake_prop_infos_locked();
     for (jsize i = 0; i < count; ++i) {
         auto key = reinterpret_cast<jstring>(env->GetObjectArrayElement(keys, i));
         auto value = reinterpret_cast<jstring>(env->GetObjectArrayElement(values, i));
