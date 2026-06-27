@@ -9,7 +9,7 @@ object HookDebugGuard {
 
     fun waitForDebuggerBeforeInstallingHooks(
         packageName: String,
-        appInfo: ApplicationInfo?
+        appInfo: ApplicationInfo?,
     ) {
         val config = readConfig()
         val appDebuggable = appInfo.isDebuggable()
@@ -26,7 +26,7 @@ object HookDebugGuard {
         waitForDebuggerOnce(packageName, "before LSPosed Java hooks")
     }
 
-    fun shouldSkipJavaHooks(packageName: String): Boolean {
+    fun shouldSkipBusinessHooks(packageName: String): Boolean {
         val config = readConfig()
         Logger.i("[HookDebug] skip_java_hooks=${config.skipJavaHooks} for $packageName")
         if (config.skipJavaHooks) {

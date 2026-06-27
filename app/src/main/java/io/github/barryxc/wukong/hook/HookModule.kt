@@ -6,13 +6,17 @@ import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.barryxc.wukong.BuildConfig
 import io.github.barryxc.wukong.hook.core.HookDebugGuard
-import io.github.barryxc.wukong.hook.core.Starter
+import io.github.barryxc.wukong.hook.core.HookInstaller
 import io.github.barryxc.wukong.hook.core.applicationRegistry
 import io.github.barryxc.wukong.hook.core.earlyInstallers
 import io.github.barryxc.wukong.hook.utils.Logger
 
-// XposedModule,实例化&callback都是被执行在被hook的目标应用进程内
-// 模块更新后，需要重新启动目标应用，才会更新模块代码
+// LSPosed/Xposed 会在需要注入的进程内加载模块入口类。
+// 对普通应用来说，目标进程已经由 zygote fork 出来之后，模块实例才会在该目标进程内创建。
+// initZygote() 属于 zygote 初始化阶段回调，适合做 zygote 级别的全局初始化；当前仅记录模块路径。
+// handleLoadPackage() 在目标进程加载 package 时回调，发生在 Application.attach/onCreate 之前。
+// 因此这里先注册 Application 生命周期 hook，真正的业务 hook 安装会延迟到 Application 可用时执行。
+// 模块更新后，需要重新启动目标应用，目标进程才会重新加载新的模块代码。
 class HookModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
 
     init {
@@ -28,7 +32,7 @@ class HookModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
         Logger.logHookAPP(lpparam)
         //如果需要调试，必须在 install hooks 之前，让 adb-jdwp 先链接上，才能hook，否则会导致调试进程校验失败
         HookDebugGuard.waitForDebuggerBeforeInstallingHooks(lpparam.packageName, lpparam.appInfo)
-        Starter.startHook(lpparam, earlyInstallers, applicationRegistry)
+        HookInstaller.installLifecycleHooksOnPackageLoad(lpparam, earlyInstallers, applicationRegistry)
     }
 
     @Throws(Throwable::class)
