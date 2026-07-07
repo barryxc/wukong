@@ -31,6 +31,8 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import java.nio.ByteBuffer;
 
@@ -64,7 +66,8 @@ public class ScreenShareService extends Service {
     private Surface surface;
     private ImageReader imageReader;
     private WindowManager windowManager;
-    private FramePreviewView overlayView;
+    private FrameLayout overlayView;
+    private FramePreviewView previewView;
     private WindowManager.LayoutParams overlayParams;
     private int width;
     private int height;
@@ -163,14 +166,34 @@ public class ScreenShareService extends Service {
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        overlayView = new FramePreviewView(this);
-        overlayView.setBackgroundColor(Color.BLACK);
+        overlayView = new FrameLayout(this);
         overlayView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 return handleOverlayTouch(event);
             }
         });
+        previewView = new FramePreviewView(this);
+        previewView.setBackgroundColor(Color.BLACK);
+        overlayView.addView(previewView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        TextView closeView = new TextView(this);
+        closeView.setText("X");
+        closeView.setTextColor(Color.WHITE);
+        closeView.setTextSize(18);
+        closeView.setGravity(Gravity.CENTER);
+        closeView.setBackgroundColor(Color.argb(160, 0, 0, 0));
+        closeView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopFromOverlay();
+            }
+        });
+        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(dp(32), dp(32));
+        closeParams.gravity = Gravity.TOP | Gravity.END;
+        overlayView.addView(closeView, closeParams);
 
         int overlayWidth = dp(220);
         int overlayHeight = calculateOverlayHeight(overlayWidth);
@@ -339,7 +362,7 @@ public class ScreenShareService extends Service {
         Image image = null;
         try {
             image = reader.acquireLatestImage();
-            if (image == null || overlayView == null) {
+            if (image == null || previewView == null) {
                 return;
             }
             long now = SystemClock.uptimeMillis();
@@ -347,7 +370,7 @@ public class ScreenShareService extends Service {
                 return;
             }
             lastFrameUptimeMs = now;
-            overlayView.updateFrame(image);
+            previewView.updateFrame(image);
         } catch (RuntimeException ignored) {
             // A frame can arrive while projection is being stopped.
         } finally {
@@ -471,9 +494,12 @@ public class ScreenShareService extends Service {
             }
         }
         if (overlayView != null) {
-            overlayView.release();
+            if (previewView != null) {
+                previewView.release();
+            }
         }
         overlayView = null;
+        previewView = null;
         windowManager = null;
         overlayParams = null;
         touchMode = TOUCH_MODE_NONE;
@@ -505,6 +531,13 @@ public class ScreenShareService extends Service {
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void stopFromOverlay() {
+        releaseAll();
+        sendStatus(false, "Stopped");
+        stopForegroundCompat();
+        stopSelf();
     }
 
     private static final class FramePreviewView extends View {

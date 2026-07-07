@@ -23,6 +23,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.ContextCompat;
+
 public class ScreenShareActivity extends Activity {
 
     private static final int REQUEST_MEDIA_PROJECTION = 1001;
@@ -60,11 +62,11 @@ public class ScreenShareActivity extends Activity {
     protected void onStart() {
         super.onStart();
         IntentFilter filter = new IntentFilter(ScreenShareService.ACTION_STATUS);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(statusReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(statusReceiver, filter);
-        }
+        ContextCompat.registerReceiver(
+                this,
+                statusReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED);
         sharing = ScreenShareService.isRunning();
         updateStatus(sharing ? "Sharing screen" : "Idle");
     }
