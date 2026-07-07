@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace "io.github.barryxc.screenshare.demo"
+    compileSdk {
+        version = release(36)
+    }
+
+    defaultConfig {
+        applicationId "io.github.barryxc.screenshare.demo"
+        minSdk 21
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+        resValue "string", "app_name", "Screen Share Demo"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            //noinspection ProguardAndroidTxtUsage
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}

@@ -16,5 +16,6 @@ local.properties
 gradle.properties
 .idea
 .kotlin
+screen-share-demo/build
 
 AGENTS.md
